@@ -46,14 +46,22 @@ export const defaultContentPageLayout: PageLayout = {
         return true
       },
       sortFn: (a, b) => {
-        // K2/work files first, then alphabetical
+        // K2/work files first
         const aIsK2 = a.data?.tags?.includes("k2") ?? false
         const bIsK2 = b.data?.tags?.includes("k2") ?? false
         if (aIsK2 && !bIsK2) return -1
         if (!aIsK2 && bIsK2) return 1
-        // Folders before files, then alphabetical
+        // Folders before files
         if (a.isFolder && !b.isFolder) return -1
         if (!a.isFolder && b.isFolder) return 1
+        // Sort by date (most recent first)
+        const aDate = a.data?.dates?.modified ?? a.data?.dates?.created
+        const bDate = b.data?.dates?.modified ?? b.data?.dates?.created
+        if (aDate && bDate) {
+          return new Date(bDate).getTime() - new Date(aDate).getTime()
+        }
+        if (aDate) return -1
+        if (bDate) return 1
         return a.displayName.localeCompare(b.displayName, undefined, {
           numeric: true,
           sensitivity: "base",
@@ -91,14 +99,22 @@ export const defaultListPageLayout: PageLayout = {
         return true
       },
       sortFn: (a, b) => {
-        // K2/work files first, then alphabetical
+        // K2/work files first
         const aIsK2 = a.data?.tags?.includes("k2") ?? false
         const bIsK2 = b.data?.tags?.includes("k2") ?? false
         if (aIsK2 && !bIsK2) return -1
         if (!aIsK2 && bIsK2) return 1
-        // Folders before files, then alphabetical
+        // Folders before files
         if (a.isFolder && !b.isFolder) return -1
         if (!a.isFolder && b.isFolder) return 1
+        // Sort by date (most recent first)
+        const aDate = a.data?.dates?.modified ?? a.data?.dates?.created
+        const bDate = b.data?.dates?.modified ?? b.data?.dates?.created
+        if (aDate && bDate) {
+          return new Date(bDate).getTime() - new Date(aDate).getTime()
+        }
+        if (aDate) return -1
+        if (bDate) return 1
         return a.displayName.localeCompare(b.displayName, undefined, {
           numeric: true,
           sensitivity: "base",

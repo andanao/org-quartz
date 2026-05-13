@@ -151,6 +151,9 @@ def build_roam_map(source_dirs: list[Path], exclude_dirs: set) -> dict[str, str]
 
     for source_dir in source_dirs:
         for org_file in source_dir.rglob("*.org"):
+            # Skip Emacs temp/lock files
+            if org_file.name.startswith(".#") or org_file.name.startswith("#"):
+                continue
             if any(part in exclude_dirs for part in org_file.parts):
                 continue
 
@@ -502,6 +505,9 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
         # Add k2 tag for files from K2_DIR
         extra_tags = ["k2"] if source_dir == K2_DIR else []
         for org_file in source_dir.rglob("*.org"):
+            # Skip Emacs temp/lock files
+            if org_file.name.startswith(".#") or org_file.name.startswith("#"):
+                continue
             if any(part in EXCLUDE_DIRS for part in org_file.parts):
                 continue
             if has_excluded_tag(org_file):
@@ -699,6 +705,9 @@ def copy_only(source_dirs: list[Path], output_dir: Path):
 
     for source_dir in source_dirs:
         for org_file in source_dir.rglob("*.org"):
+            # Skip Emacs temp/lock files
+            if org_file.name.startswith(".#") or org_file.name.startswith("#"):
+                continue
             if any(part in EXCLUDE_DIRS for part in org_file.parts):
                 continue
             if has_excluded_tag(org_file):
