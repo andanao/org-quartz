@@ -34,9 +34,13 @@ def get_file_tags(file_path: Path) -> set[str]:
                     continue
                 if in_drawer:
                     continue
-                # Check for filetags
-                if line.startswith("#+filetags:"):
-                    return set(re.findall(r":(\w+):", line.lower()))
+                # Check for filetags (case-insensitive)
+                if line.lower().startswith("#+filetags:"):
+                    # Handle both :tag: and tag: formats (tags separated by colons)
+                    tag_part = line.split(":", 1)[1].strip().lower()
+                    # Split by colons and filter empty strings
+                    tags = [t.strip() for t in tag_part.split(":") if t.strip()]
+                    return set(tags)
                 # Stop at first non-header, non-empty line
                 if not line.startswith("#") and stripped:
                     break
