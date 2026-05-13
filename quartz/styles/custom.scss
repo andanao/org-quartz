@@ -1,3 +1,192 @@
 @use "./base.scss";
 
-// put your custom CSS here!
+// ET Bembo font
+@font-face {
+  font-family: "ET Bembo";
+  src: url("https://cdn.jsdelivr.net/gh/edwardtufte/et-book@gh-pages/et-book/et-book-roman-line-figures/et-book-roman-line-figures.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "ET Bembo";
+  src: url("https://cdn.jsdelivr.net/gh/edwardtufte/et-book@gh-pages/et-book/et-book-bold-line-figures/et-book-bold-line-figures.woff") format("woff");
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "ET Bembo";
+  src: url("https://cdn.jsdelivr.net/gh/edwardtufte/et-book@gh-pages/et-book/et-book-roman-old-style-figures/et-book-roman-old-style-figures.woff") format("woff");
+  font-weight: normal;
+  font-style: italic;
+}
+
+// Force ET Bembo on body
+:root {
+  --bodyFont: "ET Bembo", Georgia, serif;
+  --headerFont: "ET Bembo", Georgia, serif;
+}
+
+body {
+  font-family: "ET Bembo", Georgia, serif;
+  font-size: 1.1rem;
+}
+
+// Page title in normal text color
+.page-title a {
+  color: var(--dark) !important;
+}
+
+// Padding for body content
+.center {
+  padding-right: 1.5rem;
+}
+
+@media (min-width: 1200px) {
+  .center {
+    padding-left: 1.5rem;
+    padding-right: 2rem;
+  }
+}
+
+// Left padding for right sidebar contents
+.sidebar.right {
+  & .graph,
+  & .toc,
+  & .backlinks {
+    padding-left: 2rem;
+  }
+}
+
+// Links in content: same color, bold, underlined, no background
+.center article a:not(.internal.tag) {
+  color: inherit;
+  font-weight: bold;
+  text-decoration: underline;
+  background: none;
+
+  &:hover {
+    color: inherit;
+    background: none;
+  }
+}
+
+
+// Page title 10% larger than H1
+h1.article-title {
+  font-size: 2rem !important;
+}
+
+// Content H1 smaller than page title
+article h1:not(.article-title) {
+  font-size: 1.6rem !important;
+}
+
+// Explorer sidebar sizing (desktop only)
+@media (min-width: 1200px) {
+  .sidebar.left {
+    min-width: 320px;
+    max-width: 450px;
+  }
+}
+
+// Sticky header bar on mobile
+@media (max-width: 800px) {
+  .sidebar.left {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--light);
+    padding: 0.5rem 1rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  // Reduce spacer between title and search
+  .sidebar.left .spacer {
+    flex: 0 0 2rem !important;
+  }
+
+  // Stretch search bar to fill space
+  .sidebar.left .search {
+    flex: 1 !important;
+    max-width: none !important;
+    width: 100%;
+
+    & > .search-button {
+      width: 100%;
+    }
+  }
+
+  // Remove extra space from flex container
+  .sidebar.left .flex-component {
+    flex: 1;
+    justify-content: flex-end;
+  }
+}
+
+.explorer {
+  width: 100%;
+}
+
+// Explorer scrollbar: transparent track, only show thumb
+.explorer-content {
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--lightgray);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--gray);
+  }
+
+  // Firefox
+  scrollbar-width: thin;
+  scrollbar-color: var(--lightgray) transparent;
+}
+
+// Explorer file names: no wrap, fade out on overflow
+.explorer-content ul li > a {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+
+  &.active {
+    color: #b35555 !important;
+    opacity: 1;
+  }
+}
+
+// Tags and date on same line
+ul.tags {
+  margin: 0;
+}
+
+p.content-meta {
+  margin: 0;
+}
+
+a.internal.tag-link {
+  background: none !important;
+  font-weight: normal;
+  font-size: 1rem;
+  font-family: "Fira Code", monospace;
+  padding: 0.1rem;
+  color: var(--dark) !important;
+
+  &:hover {
+    background: none !important;
+    color: var(--dark) !important;
+  }
+}

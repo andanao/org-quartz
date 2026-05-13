@@ -120,14 +120,43 @@ function clearActivePopover() {
   allPopoverElements.forEach((popoverElement) => popoverElement.classList.remove("active-popover"))
 }
 
+function attachPopoverToLink(link: HTMLAnchorElement) {
+  link.addEventListener("mouseenter", mouseEnterHandler)
+  link.addEventListener("mouseleave", clearActivePopover)
+  window.addCleanup(() => {
+    link.removeEventListener("mouseenter", mouseEnterHandler)
+    link.removeEventListener("mouseleave", clearActivePopover)
+  })
+}
+
 document.addEventListener("nav", () => {
   const links = [...document.querySelectorAll("a.internal")] as HTMLAnchorElement[]
   for (const link of links) {
-    link.addEventListener("mouseenter", mouseEnterHandler)
-    link.addEventListener("mouseleave", clearActivePopover)
-    window.addCleanup(() => {
-      link.removeEventListener("mouseenter", mouseEnterHandler)
-      link.removeEventListener("mouseleave", clearActivePopover)
-    })
+    attachPopoverToLink(link)
   }
+
+  // Also attach to explorer links (which don't have .internal class)
+  const explorerLinks = [...document.querySelectorAll(".explorer-content a[data-for]")] as HTMLAnchorElement[]
+  for (const link of explorerLinks) {
+    attachPopoverToLink(link)
+  }
+
+  // Watch for dynamically added explorer links
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node instanceof HTMLElement) {
+          const newLinks = node.querySelectorAll(".explorer-content a[data-for], a.internal")
+          for (const link of newLinks) {
+            attachPopoverToLink(link as HTMLAnchorElement)
+          }
+          if (node.matches?.(".explorer-content a[data-for], a.internal")) {
+            attachPopoverToLink(node as HTMLAnchorElement)
+          }
+        }
+      }
+    }
+  })
+  observer.observe(document.body, { childList: true, subtree: true })
+  window.addCleanup(() => observer.disconnect())
 })

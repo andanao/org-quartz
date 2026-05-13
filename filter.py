@@ -13,7 +13,7 @@ K2_DIR = Path.home() / "git/org/k2"
 CONTENT_DIR = Path(__file__).parent / "content"
 EXPORT_EL = Path(__file__).parent / "export.el"
 
-EXCLUDE_TAGS = {"private"}  # Tags that exclude a file from publishing
+EXCLUDE_TAGS = {"private", "monthly"}  # Tags that exclude a file from publishing
 STRIP_BODY_TAGS = {"ppl"}  # Tags where we keep the node but empty the body
 EXCLUDE_DIRS = {"daily", ".git"}  # Keep data/ for attachments
 
