@@ -532,6 +532,12 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
     print("Fixing links in HTML tables...")
     fix_wikilinks_in_html(output_dir)
 
+    # Copy index.md if it exists
+    index_src = Path(__file__).parent / "index.md"
+    if index_src.exists():
+        shutil.copy2(index_src, output_dir / "index.md")
+        print("Copied index.md")
+
 
 def copy_attachments(source_dirs: list[Path], output_dir: Path):
     """Copy attachment directories (data/) to output."""
