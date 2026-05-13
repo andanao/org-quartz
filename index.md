@@ -12,6 +12,6 @@ Use the search or explore the graph to find something interesting.
 
 Some places to jump off if curious:
 - [[tags/space|Space]]
-- [[tags/Thoughts|Random Thoughts and Musings]]
-- [[tags/Ops|Operations]]
-- [[tags/Book|Book Reviews]]
+- [[tags/thoughts|Random Thoughts and Musings]]
+- [[tags/ops|Operations]]
+- [[tags/book|Book Reviews]]

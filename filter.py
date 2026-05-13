@@ -13,8 +13,7 @@ K2_DIR = Path.home() / "git/org/k2"
 CONTENT_DIR = Path(__file__).parent / "content"
 EXPORT_EL = Path(__file__).parent / "export.el"
 
-EXCLUDE_TAGS = {"private", "monthly"}  # Tags that exclude a file from publishing
-STRIP_BODY_TAGS = {"ppl"}  # Tags where we keep the node but empty the body
+EXCLUDE_TAGS = {"private", "monthly", "ppl"}  # Tags that exclude a file from publishing
 EXCLUDE_DIRS = {"daily", ".git"}  # Keep data/ for attachments
 
 
@@ -54,9 +53,6 @@ def has_excluded_tag(file_path: Path) -> bool:
     return bool(get_file_tags(file_path) & EXCLUDE_TAGS)
 
 
-def should_strip_body(file_path: Path) -> bool:
-    """Check if file should have its body stripped (keep only frontmatter)."""
-    return bool(get_file_tags(file_path) & STRIP_BODY_TAGS)
 
 
 def strip_org_links(text: str) -> str:
@@ -472,7 +468,6 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
 
     # Collect and preprocess files
     files_to_export = []
-    slugs_to_strip = set()  # Files with :ppl: tag - keep node, empty body
     skipped = 0
 
     print("Collecting and preprocessing files...")
@@ -484,10 +479,8 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
                 skipped += 1
                 continue
             files_to_export.append(org_file)
-            if should_strip_body(org_file):
-                slugs_to_strip.add(get_slug(org_file))
 
-    print(f"Found {len(files_to_export)} files, skipped {skipped} private, {len(slugs_to_strip)} ppl")
+    print(f"Found {len(files_to_export)} files, skipped {skipped} excluded")
 
     # Preprocess all files (fast - pure Python)
     print("Preprocessing attachments...")
@@ -533,12 +526,6 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
         if not dest.exists():
             shutil.copy2(src_path, dest)
     print(f"Copied {len(attachments_map)} attachments")
-
-    # Strip body from :ppl: tagged files
-    if slugs_to_strip:
-        print("Stripping body from ppl files...")
-        stripped = strip_markdown_body(output_dir, slugs_to_strip)
-        print(f"Stripped body from {stripped} ppl files")
 
     # Post-process: resolve ID links
     print("Resolving ID links...")
@@ -636,27 +623,6 @@ def fix_wikilinks_in_html(output_dir: Path):
             fixed += 1
 
     print(f"Fixed wiki-links in HTML for {fixed} files")
-
-
-def strip_markdown_body(output_dir: Path, slugs_to_strip: set[str]):
-    """Strip body content from markdown files, keeping only frontmatter."""
-    stripped = 0
-    for slug in slugs_to_strip:
-        md_file = output_dir / f"{slug}.md"
-        if not md_file.exists():
-            continue
-        try:
-            content = md_file.read_text()
-            # Find end of frontmatter (second ---)
-            parts = content.split("---", 2)
-            if len(parts) >= 3:
-                # Keep frontmatter, empty body
-                new_content = f"---{parts[1]}---\n"
-                md_file.write_text(new_content)
-                stripped += 1
-        except Exception:
-            pass
-    return stripped
 
 
 def fix_attachment_placeholders(output_dir: Path):
