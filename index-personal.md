@@ -8,16 +8,15 @@ I have gone through many note taking tools and in 2021 ended up in EMACS and don
 the extensability and modularity of it makes it easy to incorporate whatever the newest tools/trends
 may be.
 
-
 Use the search or explore the graph to find something interesting.
 
-Some places to jump off if curious:
-- [[tags/space|Space]]
-- [[tags/thoughts|Random Thoughts and Musings]]
-- [[tags/ops|Operations]]
+Some places to jump off:
 - [[tags/book|Book Reviews]]
+- [[tags/thoughts|Random Thoughts and Musings]]
 
-My Configurans are also hosted here:
-
+My Emacs configuration is also hosted here:
 - [[emacs-literate-configuration|Emacs Config]]
-- [[k2-config|K2 work Konfig]]
+
+This site is built with [[quartz|Quartz]] and maintained in the my
+[org-quartz](https://github.com/andanao/org-quartz) . Org files are taken and processed into a
+github pages static site using Ox-Hugo and some post processing.

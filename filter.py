@@ -479,7 +479,7 @@ def fix_roam_links(output_dir: Path):
     return fixed_count
 
 
-def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int = 1, include_konfig: bool = False):
+def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int = 1, include_konfig: bool = False, mode: str = "personal"):
     """Filter and export non-private org files to markdown."""
     shutil.rmtree(output_dir, ignore_errors=True)
     output_dir.mkdir(parents=True)
@@ -589,11 +589,11 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
     print("Fixing links in HTML tables...")
     fix_wikilinks_in_html(output_dir)
 
-    # Copy index.md if it exists
-    index_src = Path(__file__).parent / "index.md"
+    # Copy mode-specific index.md
+    index_src = Path(__file__).parent / f"index-{mode}.md"
     if index_src.exists():
         shutil.copy2(index_src, output_dir / "index.md")
-        print("Copied index.md")
+        print(f"Copied index-{mode}.md")
 
 
 def copy_attachments(source_dirs: list[Path], output_dir: Path):
@@ -729,4 +729,4 @@ if __name__ == "__main__":
     if copy_mode:
         copy_only(sources, CONTENT_DIR)
     else:
-        filter_and_export(sources, CONTENT_DIR, include_konfig=include_konfig)
+        filter_and_export(sources, CONTENT_DIR, include_konfig=include_konfig, mode=mode)

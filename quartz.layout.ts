@@ -45,6 +45,20 @@ export const defaultContentPageLayout: PageLayout = {
         if (node.data?.tags?.includes("ppl")) return false
         return true
       },
+      sortFn: (a, b) => {
+        // K2/work files first, then alphabetical
+        const aIsK2 = a.data?.tags?.includes("k2") ?? false
+        const bIsK2 = b.data?.tags?.includes("k2") ?? false
+        if (aIsK2 && !bIsK2) return -1
+        if (!aIsK2 && bIsK2) return 1
+        // Folders before files, then alphabetical
+        if (a.isFolder && !b.isFolder) return -1
+        if (!a.isFolder && b.isFolder) return 1
+        return a.displayName.localeCompare(b.displayName, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      },
     }),
   ],
   right: [
@@ -75,6 +89,20 @@ export const defaultListPageLayout: PageLayout = {
         if (node.slugSegment === "tags") return false
         if (node.data?.tags?.includes("ppl")) return false
         return true
+      },
+      sortFn: (a, b) => {
+        // K2/work files first, then alphabetical
+        const aIsK2 = a.data?.tags?.includes("k2") ?? false
+        const bIsK2 = b.data?.tags?.includes("k2") ?? false
+        if (aIsK2 && !bIsK2) return -1
+        if (!aIsK2 && bIsK2) return 1
+        // Folders before files, then alphabetical
+        if (a.isFolder && !b.isFolder) return -1
+        if (!a.isFolder && b.isFolder) return 1
+        return a.displayName.localeCompare(b.displayName, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
       },
     }),
   ],
