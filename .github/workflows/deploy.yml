@@ -15,7 +15,7 @@ jobs:
       - name: Checkout personal org-roam
         uses: actions/checkout@v4
         with:
-          repository: andanao/org
+          repository: andanao/org-roam
           path: org-source
           token: ${{ secrets.ORG_REPO_TOKEN }}
 
@@ -37,8 +37,8 @@ jobs:
 
       - name: Update paths for CI
         run: |
-          # Point to checked-out org repo
-          sed -i 's|Path.home() / "git/org/personal"|Path(__file__).parent / "org-source/personal"|' filter.py
+          # Point to checked-out org repo (org-roam repo = personal folder)
+          sed -i 's|Path.home() / "git/org/personal"|Path(__file__).parent / "org-source"|' filter.py
 
       - name: Filter and build
         run: |
