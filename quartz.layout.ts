@@ -55,8 +55,8 @@ export const defaultContentPageLayout: PageLayout = {
         if (a.isFolder && !b.isFolder) return -1
         if (!a.isFolder && b.isFolder) return 1
         // Sort by date (most recent first)
-        const aDate = a.data?.dates?.modified ?? a.data?.dates?.created
-        const bDate = b.data?.dates?.modified ?? b.data?.dates?.created
+        const aDate = a.data?.date
+        const bDate = b.data?.date
         if (aDate && bDate) {
           return new Date(bDate).getTime() - new Date(aDate).getTime()
         }
@@ -108,8 +108,8 @@ export const defaultListPageLayout: PageLayout = {
         if (a.isFolder && !b.isFolder) return -1
         if (!a.isFolder && b.isFolder) return 1
         // Sort by date (most recent first)
-        const aDate = a.data?.dates?.modified ?? a.data?.dates?.created
-        const bDate = b.data?.dates?.modified ?? b.data?.dates?.created
+        const aDate = a.data?.date
+        const bDate = b.data?.date
         if (aDate && bDate) {
           return new Date(bDate).getTime() - new Date(aDate).getTime()
         }
