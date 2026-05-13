@@ -1,0 +1,111 @@
+;;; export.el --- Batch export org files to markdown -*- lexical-binding: t; -*-
+
+;; Usage:
+;;   emacs --batch -l export.el --eval '(org-to-md "/path/to/input.org" "/path/to/output.md")'
+
+(require 'ox-md)
+(require 'org)
+(require 'org-attach)
+
+;; Configure attachment handling
+(setq org-attach-id-dir "/Users/adriandanao/git/org/personal/data/"
+      org-attach-use-inheritance t)
+
+;; Minimal config for clean export
+(setq org-export-with-toc nil
+      org-export-with-section-numbers nil
+      org-export-with-author nil
+      org-export-with-creator nil
+      org-export-with-date nil
+      org-export-with-timestamps nil
+      org-export-with-todo-keywords nil
+      org-export-with-priority nil
+      org-export-preserve-breaks nil
+      org-export-with-broken-links 'mark  ; Don't abort on unresolved ID links
+      org-md-headline-style 'atx)
+
+(defun org--get-filetags ()
+  "Extract filetags from current buffer."
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward "^#\\+filetags:\\s-*\\(.*\\)$" nil t)
+      (let ((tags-str (match-string 1)))
+        (delete "" (split-string tags-str ":"))))))
+
+(defun org--get-id ()
+  "Extract ID property from current buffer."
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward "^\\s-*:ID:\\s-*\\(.*\\)$" nil t)
+      (string-trim (match-string 1)))))
+
+(defun org--strip-links (text)
+  "Remove org link markup from TEXT, keeping descriptions."
+  (when text
+    ;; [[url][desc]] -> desc
+    (setq text (replace-regexp-in-string "\\[\\[[^]]+\\]\\[\\([^]]+\\)\\]\\]" "\\1" text))
+    ;; [[url]] -> url
+    (setq text (replace-regexp-in-string "\\[\\[\\([^]]+\\)\\]\\]" "\\1" text)))
+  text)
+
+(defun org-to-md (input-file output-file)
+  "Export INPUT-FILE to OUTPUT-FILE as markdown with YAML frontmatter."
+  (with-temp-buffer
+    (insert-file-contents input-file)
+    (org-mode)
+    ;; Extract metadata
+    (let* ((title (org--strip-links (or (org-get-title) (file-name-base input-file))))
+           (id (org--get-id))
+           (tags (org--get-filetags))
+           ;; Export body to markdown
+           (content (org-export-as 'md nil nil t)))
+      ;; Write frontmatter + content
+      (with-temp-file output-file
+        (insert "---\n")
+        (insert (format "title: \"%s\"\n" (replace-regexp-in-string "\"" "\\\\\"" title)))
+        (when id
+          (insert (format "id: \"%s\"\n" id)))
+        (when tags
+          (insert (format "tags:\n"))
+          (dolist (tag tags)
+            (insert (format "  - %s\n" tag))))
+        (insert "---\n\n")
+        (insert content))
+      (message "Exported: %s" (file-name-nondirectory input-file)))))
+
+(defun batch-export ()
+  "Export files from command line: -- input1.org output1.md input2.org output2.md"
+  (let ((args command-line-args-left))
+    (while args
+      (let ((input (pop args))
+            (output (pop args)))
+        (when (and input output (file-exists-p input))
+          (condition-case err
+              (org-to-md input output)
+            (error (message "Error: %s - %s" input (error-message-string err)))))))))
+
+(defun batch-export-from-file (batch-file)
+  "Export files listed in BATCH-FILE (tab-separated: input<TAB>output per line)."
+  (let ((count 0)
+        (errors 0))
+    (with-temp-buffer
+      (insert-file-contents batch-file)
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let* ((line (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
+               (parts (split-string line "\t")))
+          (when (= (length parts) 2)
+            (let ((input (nth 0 parts))
+                  (output (nth 1 parts)))
+              (condition-case err
+                  (progn
+                    (org-to-md input output)
+                    (setq count (1+ count)))
+                (error
+                 (setq errors (1+ errors))
+                 (message "Error: %s" (error-message-string err)))))))
+        (forward-line 1)))
+    (message "Batch export complete: %d succeeded, %d failed" count errors)))
+
+(provide 'export)
+;;; export.el ends here
