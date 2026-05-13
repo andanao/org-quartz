@@ -2,7 +2,7 @@
 title: "Adrian's Org Notes"
 ---
 
-These are my personal notes all taken in [[EMACS]] using the [[Org Roam]] framework.
+These are my personal notes all taken in [[emacs|Emacs]] using the [[org-roam|Org Roam]] framework.
 
 I have gone through many note taking tools and in 2021 ended up in EMACS and don't plan on leaving,
 the extensability and modularity of it makes it easy to incorporate whatever the newest tools/trends

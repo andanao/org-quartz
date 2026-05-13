@@ -81,6 +81,22 @@ def get_title_from_org(org_file: Path) -> str | None:
     return None
 
 
+def get_date_from_filename(org_file: Path) -> str | None:
+    """Extract date from org-roam filename (YYYYMMDDHHMMSS-title.org)."""
+    name = org_file.stem
+    match = re.match(r"^(\d{4})(\d{2})(\d{2})\d{6}-", name)
+    if match:
+        return f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+    return None
+
+
+def get_date_from_mtime(org_file: Path) -> str:
+    """Get modification date from file's mtime."""
+    from datetime import datetime
+    mtime = org_file.stat().st_mtime
+    return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
+
+
 def get_slug(org_file: Path) -> str:
     """Generate a URL-friendly slug from org title or filename."""
     # Try to get title first
@@ -155,6 +171,17 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
     content = org_file.read_text()
     roam_map = roam_map or {}
 
+    # Add date from filename or filesystem mtime
+    if "#+date:" not in content.lower():
+        date = get_date_from_filename(org_file) or get_date_from_mtime(org_file)
+        # Insert after title line
+        content = re.sub(
+            r'(#\+title:[^\n]*\n)',
+            rf'\1#+DATE: {date}\n',
+            content,
+            flags=re.IGNORECASE
+        )
+
     # Normalize multi-line links: join lines within [[...]] brackets
     def join_multiline_links(text):
         result = []
@@ -212,10 +239,12 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
                         attachments_map[f.name] = f
 
         # Replace [[attachment:file]] with placeholder
+        # Escape underscores to prevent org subscript interpretation
         def replace_attach(match):
             filename = match.group(1)
             if filename in available_attachments:
-                return f'IMGATTACH:{filename}:ENDIMG'
+                escaped = filename.replace('_', 'USCORE')
+                return f'IMGATTACH:{escaped}:ENDIMG'
             return match.group(0)
 
         content = re.sub(r'\[\[attachment:([^\]]+)\]\]', replace_attach, content)
@@ -637,7 +666,8 @@ def fix_attachment_placeholders(output_dir: Path):
         original = content
 
         def replace_placeholder(match):
-            filename = match.group(1)
+            # Unescape underscores
+            filename = match.group(1).replace('USCORE', '_')
             ext = Path(filename).suffix.lower()
             if ext in img_extensions:
                 return f'![{filename}](/attachments/{filename})'

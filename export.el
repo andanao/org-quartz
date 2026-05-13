@@ -7,6 +7,23 @@
 (require 'org)
 (require 'org-attach)
 
+;; Override source block export to use fenced code blocks with language
+(defun my-md-src-block (src-block _contents info)
+  "Transcode SRC-BLOCK to fenced code block with language identifier."
+  (let ((lang (org-element-property :language src-block))
+        (code (org-export-format-code-default src-block info)))
+    (format "```%s\n%s```" (or lang "") code)))
+
+(defun my-md-example-block (example-block _contents info)
+  "Transcode EXAMPLE-BLOCK to fenced code block."
+  (format "```\n%s```"
+          (org-export-format-code-default example-block info)))
+
+;; Override the md backend transcoders
+(org-export-define-derived-backend 'md-fenced 'md
+  :translate-alist '((src-block . my-md-src-block)
+                     (example-block . my-md-example-block)))
+
 ;; Configure attachment handling
 (setq org-attach-id-dir "/Users/adriandanao/git/org/personal/data/"
       org-attach-use-inheritance t)
@@ -39,6 +56,13 @@
     (when (re-search-forward "^\\s-*:ID:\\s-*\\(.*\\)$" nil t)
       (string-trim (match-string 1)))))
 
+(defun org--get-date ()
+  "Extract #+DATE from current buffer."
+  (save-excursion
+    (goto-char (point-min))
+    (when (re-search-forward "^#\\+[Dd][Aa][Tt][Ee]:\\s-*\\(.*\\)$" nil t)
+      (string-trim (match-string 1)))))
+
 (defun org--strip-links (text)
   "Remove org link markup from TEXT, keeping descriptions."
   (when text
@@ -56,15 +80,18 @@
     ;; Extract metadata
     (let* ((title (org--strip-links (or (org-get-title) (file-name-base input-file))))
            (id (org--get-id))
+           (date (org--get-date))
            (tags (org--get-filetags))
-           ;; Export body to markdown
-           (content (org-export-as 'md nil nil t)))
+           ;; Export body to markdown with fenced code blocks
+           (content (org-export-as 'md-fenced nil nil t)))
       ;; Write frontmatter + content
       (with-temp-file output-file
         (insert "---\n")
         (insert (format "title: \"%s\"\n" (replace-regexp-in-string "\"" "\\\\\"" title)))
         (when id
           (insert (format "id: \"%s\"\n" id)))
+        (when date
+          (insert (format "date: %s\n" date)))
         (when tags
           (insert (format "tags:\n"))
           (dolist (tag tags)
