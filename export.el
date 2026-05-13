@@ -8,11 +8,19 @@
 (require 'org-attach)
 
 ;; Override source block export to use fenced code blocks with language
+;; Include tangle destination if present
 (defun my-md-src-block (src-block _contents info)
-  "Transcode SRC-BLOCK to fenced code block with language identifier."
-  (let ((lang (org-element-property :language src-block))
-        (code (org-export-format-code-default src-block info)))
-    (format "```%s\n%s```" (or lang "") code)))
+  "Transcode SRC-BLOCK to fenced code block with language identifier.
+Shows tangle destination if present."
+  (let* ((lang (org-element-property :language src-block))
+         (code (org-export-format-code-default src-block info))
+         (params (org-element-property :parameters src-block))
+         (tangle (when params
+                   (when (string-match ":tangle\\s-+\\([^[:space:]]+\\)" params)
+                     (match-string 1 params)))))
+    (if (and tangle (not (string= tangle "no")))
+        (format "```%s\n;; → %s\n%s```" (or lang "") tangle code)
+      (format "```%s\n%s```" (or lang "") code))))
 
 (defun my-md-example-block (example-block _contents info)
   "Transcode EXAMPLE-BLOCK to fenced code block."

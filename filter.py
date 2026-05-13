@@ -10,10 +10,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 PERSONAL_DIR = Path.home() / "git/org/personal"
 K2_DIR = Path.home() / "git/org/k2"
+EMACS_CONFIG = Path.home() / "git/emacs/readme.org"  # Public emacs config
+KONFIG_CONFIG = Path.home() / "git/konfig/readme.org"  # Work config (combined only)
 CONTENT_DIR = Path(__file__).parent / "content"
 EXPORT_EL = Path(__file__).parent / "export.el"
 
-EXCLUDE_TAGS = {"private", "monthly", "ppl"}  # Tags that exclude a file from publishing
+EXCLUDE_TAGS = {"private", "monthly", "ppl", "yof", "love"}  # Tags that exclude a file from publishing
 EXCLUDE_DIRS = {"daily", ".git"}  # Keep data/ for attachments
 
 
@@ -166,10 +168,35 @@ def build_roam_map(source_dirs: list[Path], exclude_dirs: set) -> dict[str, str]
     return roam_map
 
 
-def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = None) -> str:
+def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = None, extra_tags: list[str] = None) -> str:
     """Preprocess org file content - convert attachment, ID, and roam links."""
     content = org_file.read_text()
     roam_map = roam_map or {}
+    extra_tags = extra_tags or []
+
+    # Add extra tags to filetags line (only in header, first 20 lines)
+    if extra_tags:
+        extra_tags_str = ":" + ":".join(extra_tags) + ":"
+        lines = content.split('\n')
+        header_lines = lines[:20]
+        header_text = '\n'.join(header_lines)
+
+        # Check if filetags exists in header only
+        if re.search(r'(?i)^#\+filetags:', header_text, re.MULTILINE):
+            # Append to existing filetags in header
+            for i, line in enumerate(header_lines):
+                if line.lower().startswith('#+filetags:'):
+                    lines[i] = line.rstrip() + extra_tags_str
+                    break
+            content = '\n'.join(lines)
+        else:
+            # Add filetags line after title
+            content = re.sub(
+                r'(#\+title:[^\n]*\n)',
+                rf'\1#+filetags: {extra_tags_str}\n',
+                content,
+                flags=re.IGNORECASE
+            )
 
     # Add date from filename or filesystem mtime
     if "#+date:" not in content.lower():
@@ -452,7 +479,7 @@ def fix_roam_links(output_dir: Path):
     return fixed_count
 
 
-def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int = 1):
+def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int = 1, include_konfig: bool = False):
     """Filter and export non-private org files to markdown."""
     shutil.rmtree(output_dir, ignore_errors=True)
     output_dir.mkdir(parents=True)
@@ -467,30 +494,40 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
     print(f"Found {len(roam_map)} roam names/aliases")
 
     # Collect and preprocess files
-    files_to_export = []
+    files_to_export = []  # (org_file, extra_tags)
     skipped = 0
 
     print("Collecting and preprocessing files...")
     for source_dir in source_dirs:
+        # Add k2 tag for files from K2_DIR
+        extra_tags = ["k2"] if source_dir == K2_DIR else []
         for org_file in source_dir.rglob("*.org"):
             if any(part in EXCLUDE_DIRS for part in org_file.parts):
                 continue
             if has_excluded_tag(org_file):
                 skipped += 1
                 continue
-            files_to_export.append(org_file)
+            files_to_export.append((org_file, extra_tags))
+
+    # Add config files
+    if EMACS_CONFIG.exists():
+        files_to_export.append((EMACS_CONFIG, ["config"]))
+        print("Added emacs config")
+    if include_konfig and KONFIG_CONFIG.exists():
+        files_to_export.append((KONFIG_CONFIG, ["config", "k2"]))
+        print("Added konfig (work config)")
 
     print(f"Found {len(files_to_export)} files, skipped {skipped} excluded")
 
     # Preprocess all files (fast - pure Python)
     print("Preprocessing attachments...")
     file_pairs = []  # (staged_org, output_md)
-    for org_file in files_to_export:
+    for org_file, extra_tags in files_to_export:
         slug = get_slug(org_file)
         staged = staging_dir / f"{slug}.org"
         output = output_dir / f"{slug}.md"
 
-        content = preprocess_org_file(org_file, attachments_map, roam_map)
+        content = preprocess_org_file(org_file, attachments_map, roam_map, extra_tags)
         staged.write_text(content)
         file_pairs.append((str(staged), str(output)))
 
@@ -684,10 +721,12 @@ if __name__ == "__main__":
 
     if mode == "combined":
         sources = [PERSONAL_DIR, K2_DIR]
+        include_konfig = True
     else:
         sources = [PERSONAL_DIR]
+        include_konfig = False
 
     if copy_mode:
         copy_only(sources, CONTENT_DIR)
     else:
-        filter_and_export(sources, CONTENT_DIR)
+        filter_and_export(sources, CONTENT_DIR, include_konfig=include_konfig)
