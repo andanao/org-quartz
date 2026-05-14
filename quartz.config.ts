@@ -14,7 +14,7 @@ const config: QuartzConfig = {
     enablePopovers: true,
     analytics: null,
     locale: "en-US",
-    baseUrl: "notes.example.com",  // Update this for your deployment
+    baseUrl: "andanao.github.io/org-quartz",
     ignorePatterns: ["private", "templates"],
     defaultDateType: "modified",
     theme: {
