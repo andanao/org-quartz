@@ -47,6 +47,8 @@ Shows tangle destination if present."
       org-export-with-priority nil
       org-export-preserve-breaks nil
       org-export-with-broken-links 'mark  ; Don't abort on unresolved ID links
+      org-export-with-sub-superscripts nil  ; Don't interpret _ as subscript
+      org-export-with-latex nil  ; Don't process LaTeX (avoid \( \) becoming $)
       org-md-headline-style 'atx)
 
 (defun org--get-filetags ()

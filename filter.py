@@ -213,11 +213,20 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
         )
 
     # Normalize multi-line links: join lines within [[...]] brackets
+    # Skip code blocks to avoid mangling elisp with org link syntax
     def join_multiline_links(text):
         result = []
         i = 0
+        in_src_block = False
         while i < len(text):
-            if text[i:i+2] == '[[':
+            # Check for src block start/end
+            if text[i:i+12].lower() == '#+begin_src ':
+                in_src_block = True
+            elif text[i:i+10].lower() == '#+end_src':
+                in_src_block = False
+
+            # Only process links outside of src blocks
+            if not in_src_block and text[i:i+2] == '[[':
                 # Find the closing ]]
                 start = i
                 depth = 0
