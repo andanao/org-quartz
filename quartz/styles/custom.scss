@@ -83,11 +83,41 @@ article h1:not(.article-title) {
   font-size: 1.6rem !important;
 }
 
-// Explorer sidebar sizing (desktop only)
-@media (min-width: 1200px) {
-  .sidebar.left {
-    min-width: 320px;
-    max-width: 450px;
+// Remove line separators at bottom of content
+article hr:last-of-type,
+.center hr,
+.page-footer {
+  border: none;
+}
+
+// Layout sizing variables
+$sidebarMin: 250px;
+$sidebarMax: 380px;
+$bodyMax: 900px;
+// Desktop starts when: 2*sidebarMin + bodyMin fits (1000px)
+// Sidebars start growing when: 2*sidebarMin + bodyMax = 1400px
+
+// Body grows first to max, then sidebars expand
+@media (min-width: 1000px) {
+  #quartz-body {
+    grid-template-columns:
+      $sidebarMin
+      1fr
+      $sidebarMin !important;
+  }
+
+  .center {
+    max-width: $bodyMax;
+  }
+}
+
+// Once viewport can fit full body + min sidebars, let sidebars grow
+@media (min-width: 1400px) {
+  #quartz-body {
+    grid-template-columns:
+      clamp($sidebarMin, calc((100vw - #{$bodyMax}) / 2), $sidebarMax)
+      minmax(500px, $bodyMax)
+      clamp($sidebarMin, calc((100vw - #{$bodyMax}) / 2), $sidebarMax) !important;
   }
 }
 
