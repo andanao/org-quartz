@@ -1,5 +1,7 @@
 #!/bin/bash
 set -e
+export PATH="/opt/homebrew/bin:$PATH"
+export PATH="/Users/adriandanao/.nvm/versions/node/v22.20.0/bin/:$PATH"
 cd "$(dirname "$0")/.."
 
 echo "=== Building combined site ==="
