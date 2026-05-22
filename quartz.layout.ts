@@ -11,12 +11,17 @@ export const sharedPageComponents: SharedLayout = {
       GitHub: "https://github.com/andanao/org-quartz",
     },
   }),
+  topHeader: Component.TopHeader({
+    left: [Component.PageTitle()],
+    center: [Component.ArticleTitle()],
+    right: [Component.Search(), Component.Darkmode(), Component.ReaderMode()],
+  }),
 }
 
 // components for pages that display a single page (e.g. a single note)
 export const defaultContentPageLayout: PageLayout = {
   beforeBody: [
-    Component.ArticleTitle(),
+    Component.MobileOnly(Component.ArticleTitle()),
     Component.Flex({
       components: [
         { Component: Component.TagList(), grow: true, align: "center" },
@@ -26,18 +31,14 @@ export const defaultContentPageLayout: PageLayout = {
     }),
   ],
   left: [
-    Component.PageTitle(),
-    Component.MobileOnly(Component.Spacer()),
-    Component.Flex({
-      components: [
-        {
-          Component: Component.Search(),
-          grow: true,
-        },
-        { Component: Component.Darkmode() },
-        { Component: Component.DesktopOnly(Component.ReaderMode()) },
-      ],
-    }),
+    // Show TOC, Backlinks, and Graph in left sidebar on tablet and mobile (in drawer)
+    Component.MobileOnly(Component.PageTitle()),
+    Component.MobileOnly(Component.Search()),
+    Component.MobileOnly(Component.TableOfContents()),
+    Component.MobileOnly(Component.Backlinks()),
+    Component.MobileOnly(Component.Graph()),
+    Component.TabletOnly(Component.TableOfContents()),
+    Component.TabletOnly(Component.Backlinks()),
     Component.Explorer({
       filterFn: (node) => {
         // Hide pages tagged with "ppl" and the tags folder
@@ -70,27 +71,16 @@ export const defaultContentPageLayout: PageLayout = {
     }),
   ],
   right: [
-    Component.Graph(),
+    Component.DesktopOnly(Component.Graph()),
     Component.DesktopOnly(Component.TableOfContents()),
-    Component.Backlinks(),
+    Component.DesktopOnly(Component.Backlinks()),
   ],
 }
 
 // components for pages that display lists of pages  (e.g. tags or folders)
 export const defaultListPageLayout: PageLayout = {
-  beforeBody: [Component.ArticleTitle(), Component.ContentMeta()],
+  beforeBody: [Component.ContentMeta()],
   left: [
-    Component.PageTitle(),
-    Component.MobileOnly(Component.Spacer()),
-    Component.Flex({
-      components: [
-        {
-          Component: Component.Search(),
-          grow: true,
-        },
-        { Component: Component.Darkmode() },
-      ],
-    }),
     Component.Explorer({
       filterFn: (node) => {
         // Hide pages tagged with "ppl" and the tags folder

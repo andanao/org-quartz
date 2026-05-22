@@ -155,6 +155,7 @@ export default ((userOpts?: Partial<Options>) => {
             </div>
           </li>
         </template>
+        <div class="explorer-backdrop"></div>
       </div>
     )
   }

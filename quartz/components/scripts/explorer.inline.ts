@@ -37,6 +37,12 @@ function toggleExplorer(this: HTMLElement) {
   }
 }
 
+function closeExplorer(explorer: HTMLElement) {
+  explorer.classList.add("collapsed")
+  explorer.setAttribute("aria-expanded", "false")
+  document.documentElement.classList.remove("mobile-no-scroll")
+}
+
 function toggleFolder(evt: MouseEvent) {
   evt.stopPropagation()
   const target = evt.target as MaybeHTMLElement
@@ -258,6 +264,14 @@ async function setupExplorer(currentSlug: FullSlug) {
     for (const icon of folderIcons) {
       icon.addEventListener("click", toggleFolder)
       window.addCleanup(() => icon.removeEventListener("click", toggleFolder))
+    }
+
+    // Set up backdrop click handler to close drawer
+    const backdrop = explorer.querySelector(".explorer-backdrop") as HTMLElement
+    if (backdrop) {
+      const handleBackdropClick = () => closeExplorer(explorer)
+      backdrop.addEventListener("click", handleBackdropClick)
+      window.addCleanup(() => backdrop.removeEventListener("click", handleBackdropClick))
     }
   }
 }

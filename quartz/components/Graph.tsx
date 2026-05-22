@@ -4,6 +4,20 @@ import script from "./scripts/graph.inline"
 import style from "./styles/graph.scss"
 import { i18n } from "../i18n"
 import { classNames } from "../util/lang"
+import { concatenateResources } from "../util/resources"
+
+const collapseScript = `
+const graphHeaders = document.querySelectorAll("button.graph-header")
+for (const header of graphHeaders) {
+  header.addEventListener("click", () => {
+    header.classList.toggle("collapsed")
+    const content = header.nextElementSibling
+    if (content) {
+      content.classList.toggle("collapsed")
+    }
+  })
+}
+`
 
 export interface D3Config {
   drag: boolean
@@ -65,8 +79,24 @@ export default ((opts?: Partial<GraphOptions>) => {
     const globalGraph = { ...defaultOptions.globalGraph, ...opts?.globalGraph }
     return (
       <div class={classNames(displayClass, "graph")}>
-        <h3>{i18n(cfg.locale).components.graph.title}</h3>
-        <div class="graph-outer">
+        <button type="button" class="graph-header collapsed" aria-expanded="false">
+          <h3>{i18n(cfg.locale).components.graph.title}</h3>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="fold"
+          >
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div class="graph-outer collapsed">
           <div class="graph-container" data-cfg={JSON.stringify(localGraph)}></div>
           <button class="global-graph-icon" aria-label="Global Graph">
             <svg
@@ -103,7 +133,7 @@ export default ((opts?: Partial<GraphOptions>) => {
   }
 
   Graph.css = style
-  Graph.afterDOMLoaded = script
+  Graph.afterDOMLoaded = concatenateResources(script, collapseScript)
 
   return Graph
 }) satisfies QuartzComponentConstructor

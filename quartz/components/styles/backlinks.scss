@@ -1,24 +1,57 @@
 @use "../../styles/variables.scss" as *;
 
 .backlinks {
+  display: flex;
   flex-direction: column;
+  overflow-y: hidden;
+  min-height: 1.4rem;
+  flex: 0 0.5 auto;
 
-  & > h3 {
+  &:has(button.backlinks-header.collapsed) {
+    flex: 0 1 1.4rem;
+  }
+}
+
+button.backlinks-header {
+  background-color: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  color: var(--dark);
+  display: flex;
+  align-items: center;
+
+  & h3 {
     font-size: 1rem;
+    display: inline-block;
     margin: 0;
   }
 
-  & > ul.overflow {
-    list-style: none;
-    padding: 0;
-    margin: 0.5rem 0;
-    max-height: calc(100% - 2rem);
-    overscroll-behavior: contain;
+  & .fold {
+    margin-left: 0.5rem;
+    transition: transform 0.3s ease;
+    opacity: 0.8;
+  }
 
-    & > li {
-      & > a {
-        background-color: transparent;
-      }
-    }
+  &.collapsed .fold {
+    transform: rotateZ(-90deg);
+  }
+}
+
+ul.backlinks-content.overflow {
+  list-style: none;
+  position: relative;
+  margin: 0.5rem 0;
+  padding: 0;
+  max-height: calc(100% - 2rem);
+  overscroll-behavior: contain;
+
+  &.collapsed {
+    display: none;
+  }
+
+  & > li > a {
+    background-color: transparent;
   }
 }

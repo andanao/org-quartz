@@ -101,7 +101,7 @@ export const TagPage: QuartzEmitterPlugin<Partial<TagPageOptions>> = (userOpts) 
     ...userOpts,
   }
 
-  const { head: Head, header, beforeBody, pageBody, afterBody, left, right, footer: Footer } = opts
+  const { head: Head, header, beforeBody, pageBody, afterBody, left, right, footer: Footer, topHeader: TopHeader } = opts
   const Header = HeaderConstructor()
   const Body = BodyConstructor()
 
@@ -119,6 +119,7 @@ export const TagPage: QuartzEmitterPlugin<Partial<TagPageOptions>> = (userOpts) 
         ...left,
         ...right,
         Footer,
+        ...(TopHeader ? [TopHeader] : []),
       ]
     },
     async *emit(ctx, content, resources) {

@@ -144,6 +144,25 @@ a {
     }
     display: none;
   }
+  @media all and ($tablet) {
+    &.flex-component {
+      display: none;
+    }
+    display: none;
+  }
+}
+
+.tablet-only {
+  display: none;
+  &.flex-component {
+    display: none;
+  }
+  @media all and ($tablet) {
+    &.flex-component {
+      display: flex;
+    }
+    display: initial;
+  }
 }
 
 .mobile-only {
@@ -281,7 +300,7 @@ a {
       }
     }
 
-    & .center > article {
+    & .center {
       grid-area: grid-center;
     }
 

@@ -20,6 +20,7 @@ interface RenderComponents {
   left: QuartzComponent[]
   right: QuartzComponent[]
   footer: QuartzComponent
+  topHeader?: QuartzComponent
 }
 
 const headerRegex = new RegExp(/h[1-6]/)
@@ -237,6 +238,7 @@ export function renderPage(
     left,
     right,
     footer: Footer,
+    topHeader: TopHeader,
   } = components
   const Header = HeaderConstructor()
   const Body = BodyConstructor()
@@ -265,6 +267,7 @@ export function renderPage(
       <body data-slug={slug}>
         <div id="quartz-root" class="page">
           <Body {...componentData}>
+            {TopHeader && <TopHeader {...componentData} />}
             {LeftComponent}
             <div class="center">
               <div class="page-header">

@@ -23,12 +23,52 @@
 
 :root[reader-mode="on"] {
   & .sidebar.left,
-  & .sidebar.right {
-    opacity: 0;
-    transition: opacity 0.2s ease;
+  & .sidebar.right,
+  & footer {
+    display: none !important;
+  }
 
-    &:hover {
-      opacity: 1;
+  & #quartz-body {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "grid-top-header"
+      "grid-center" !important;
+  }
+
+  & .page > #quartz-body .center {
+    max-width: 800px !important;
+    min-width: auto !important;
+    margin: 0 auto;
+  }
+
+  // On mobile, don't change the layout - it's already single column
+  @media all and (max-width: 800px) {
+    & #quartz-body {
+      grid-template-columns: auto !important;
     }
+
+    & .page > #quartz-body .center {
+      max-width: 100% !important;
+      padding: 0 1rem;
+    }
+  }
+
+  // Collapse search bar to icon only
+  & .search {
+    width: auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    flex-grow: 0 !important;
+  }
+
+  & .search .search-button {
+    width: auto !important;
+    min-width: auto !important;
+    padding: 0.25rem;
+    border: none;
+  }
+
+  & .search .search-button p {
+    display: none !important;
   }
 }
