@@ -14,10 +14,12 @@ help:
 combined:
 	python3 filter.py combined
 	npx quartz build
+	./scripts/fix-html-attachments.sh
 
 personal:
 	python3 filter.py personal
 	npx quartz build
+	./scripts/fix-html-attachments.sh
 
 serve:
 	npx quartz build --serve

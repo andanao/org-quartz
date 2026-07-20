@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import urllib.parse
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -17,6 +18,22 @@ EXPORT_EL = Path(__file__).parent / "export.el"
 
 EXCLUDE_TAGS = {"private", "monthly", "ppl", "yof", "love"}  # Tags that exclude a file from publishing
 EXCLUDE_DIRS = {"daily", ".git"}  # Keep data/ for attachments
+IMG_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
+
+
+def slugify_attachment_name(filename: str) -> str:
+    """Slugify an attachment filename to match Quartz's static-asset slugifier.
+
+    Quartz rewrites spaces (and other non-URL-safe chars) in copied asset
+    filenames, but the markdown link keeps the original name, breaking the link.
+    We pre-slugify to characters Quartz leaves untouched ([A-Za-z0-9._-]) so the
+    copied file and the emitted link stay identical.
+    """
+    p = Path(filename)
+    stem, ext = p.stem, p.suffix
+    stem = re.sub(r"[^A-Za-z0-9._-]", "-", stem)  # whitespace and unsafe chars -> hyphen
+    stem = re.sub(r"-+", "-", stem).strip("-")
+    return (stem or "file") + ext
 
 
 def get_file_tags(file_path: Path) -> set[str]:
@@ -274,15 +291,18 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
             if attach_dir.exists():
                 for f in attach_dir.iterdir():
                     if f.is_file():
-                        available_attachments[f.name] = f
-                        attachments_map[f.name] = f
+                        # Map original name -> slug so links match the copied file
+                        slug = slugify_attachment_name(f.name)
+                        available_attachments[f.name] = slug
+                        attachments_map[slug] = f
 
         # Replace [[attachment:file]] with placeholder
         # Escape underscores to prevent org subscript interpretation
         def replace_attach(match):
             filename = match.group(1)
             if filename in available_attachments:
-                escaped = filename.replace('_', 'USCORE')
+                slug = available_attachments[filename]
+                escaped = slug.replace('_', 'USCORE')
                 return f'IMGATTACH:{escaped}:ENDIMG'
             return match.group(0)
 
@@ -596,6 +616,14 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
     print("Fixing attachment placeholders...")
     fix_attachment_placeholders(output_dir)
 
+    # Rewrite local file: links that point into org-attach data/ dirs
+    print("Fixing local file: attachment links...")
+    fix_file_links(output_dir, attachments_dir)
+
+    # Strip org :ATTACH: tags leaked onto headings
+    print("Stripping :ATTACH: heading tags...")
+    strip_attach_heading_tags(output_dir)
+
     # Clean up any remaining broken link markers
     print("Cleaning up unresolved links...")
     cleanup_broken_links(output_dir)
@@ -677,10 +705,39 @@ def fix_wikilinks_in_html(output_dir: Path):
     print(f"Fixed wiki-links in HTML for {fixed} files")
 
 
+def strip_attach_heading_tags(output_dir: Path):
+    """Remove org :ATTACH: tags that leak onto exported markdown headings.
+
+    Org-attach adds an :ATTACH: tag to headings with attachments; ox/emacs export
+    leaves it on the line, e.g. `## Hosted tool     :ATTACH:`. Strip the ATTACH
+    token from the trailing tag cluster (keeping any other tags).
+    """
+    heading_tag = re.compile(r'^(#{1,6} .*?)[ \t]+(:[A-Za-z0-9_@#%:]+:)[ \t]*$')
+    fixed = 0
+
+    for md_file in output_dir.glob("*.md"):
+        lines = md_file.read_text().split('\n')
+        changed = False
+        for i, line in enumerate(lines):
+            m = heading_tag.match(line)
+            if not m:
+                continue
+            tags = [t for t in m.group(2).split(':') if t]
+            if 'ATTACH' not in tags:
+                continue
+            tags = [t for t in tags if t != 'ATTACH']
+            lines[i] = f"{m.group(1)} :{':'.join(tags)}:" if tags else m.group(1)
+            changed = True
+        if changed:
+            md_file.write_text('\n'.join(lines))
+            fixed += 1
+
+    print(f"Stripped :ATTACH: heading tags in {fixed} files")
+
+
 def fix_attachment_placeholders(output_dir: Path):
     """Convert IMGATTACH:file:ENDIMG placeholders to markdown syntax."""
     pattern = re.compile(r'IMGATTACH:([^:]+):ENDIMG')
-    img_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp'}
 
     fixed = 0
     for md_file in output_dir.glob("*.md"):
@@ -691,7 +748,7 @@ def fix_attachment_placeholders(output_dir: Path):
             # Unescape underscores
             filename = match.group(1).replace('USCORE', '_')
             ext = Path(filename).suffix.lower()
-            if ext in img_extensions:
+            if ext in IMG_EXTENSIONS:
                 return f'![{filename}](/attachments/{filename})'
             else:
                 return f'[{filename}](/attachments/{filename})'
@@ -702,6 +759,64 @@ def fix_attachment_placeholders(output_dir: Path):
             fixed += 1
 
     print(f"Fixed attachment placeholders in {fixed} files")
+
+
+def fix_file_links(output_dir: Path, attachments_dir: Path):
+    """Rewrite local `file:` links that resolve to org-attach attachments.
+
+    Some notes link attachments as absolute file: URIs instead of
+    `[[attachment:]]`, in two shapes:
+      1. Directly into a data/ dir: `[desc](file:///.../data/57/UUID/report.pdf)`
+      2. To a bare basename elsewhere (e.g. the repo root) whose file is
+         actually an org-attachment already synced into attachments/:
+         `[desc](file:///.../org-quartz/gravitas_mission_planner.html)`
+    Quartz cannot resolve a file: URI and drops the link, so rewrite both to
+    `/attachments/<slug>` (copying case 1 if needed; case 2 is already synced
+    via the note's :ID: dir). Links to files that are neither (e.g. source code
+    references) are left untouched.
+    """
+    pattern = re.compile(r'\[([^\]]*)\]\((file:[^)]+)\)')
+    fixed = 0
+    copied = 0
+
+    for md_file in output_dir.glob("*.md"):
+        content = md_file.read_text()
+        original = content
+
+        def replace_link(match):
+            nonlocal copied
+            text = match.group(1)
+            uri = match.group(2)
+            # file:///abs -> /abs, file:/abs -> /abs, then url-decode
+            path = Path(urllib.parse.unquote(re.sub(r'^file:/*', '/', uri)))
+            slug = slugify_attachment_name(path.name)
+            dest = attachments_dir / slug
+
+            if "data" in path.parts and path.is_file():
+                # Case 1: direct link into an org-attach data/ dir
+                if not dest.exists():
+                    shutil.copy2(path, dest)
+                    copied += 1
+            elif not dest.exists():
+                # Not an attachment we recognise (e.g. source-code link) - skip
+                return match.group(0)
+            # else Case 2: basename already synced as an attachment - reuse it
+
+            # Quartz serves .html/.htm assets without their extension; match that
+            url = slug
+            if Path(slug).suffix.lower() in {".html", ".htm"}:
+                url = slug[: -len(Path(slug).suffix)]
+
+            if path.suffix.lower() in IMG_EXTENSIONS:
+                return f'![{text}](/attachments/{url})'
+            return f'[{text or slug}](/attachments/{url})'
+
+        content = pattern.sub(replace_link, content)
+        if content != original:
+            md_file.write_text(content)
+            fixed += 1
+
+    print(f"Rewrote file: links in {fixed} files ({copied} attachments copied)")
 
 
 def copy_only(source_dirs: list[Path], output_dir: Path):

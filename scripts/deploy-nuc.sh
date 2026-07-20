@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 echo "=== Building combined site ==="
 python3 filter.py combined
 npx quartz build
+./scripts/fix-html-attachments.sh
 
 echo "=== Deploying to NUC ==="
 rsync -avz --delete public/ nuc:/var/www/org-notes/
