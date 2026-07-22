@@ -12,9 +12,9 @@ export const sharedPageComponents: SharedLayout = {
     },
   }),
   topHeader: Component.TopHeader({
-    left: [Component.PageTitle()],
+    left: [Component.ReaderMode(), Component.Darkmode(), Component.Search()],
     center: [Component.ArticleTitle()],
-    right: [Component.Search(), Component.Darkmode(), Component.ReaderMode()],
+    right: [Component.PageTitle()],
   }),
 }
 

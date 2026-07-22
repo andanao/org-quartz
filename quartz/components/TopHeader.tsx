@@ -73,11 +73,12 @@ export default ((opts: TopHeaderOptions) => {
 .top-header-left {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  justify-self: start;
+  gap: 0.75rem;
+  justify-self: stretch;
 }
 
-.top-header-left .page-title {
+/* Site title now lives on the right */
+.top-header-right .page-title {
   margin: 0;
 }
 
@@ -119,64 +120,67 @@ export default ((opts: TopHeaderOptions) => {
   justify-self: end;
 }
 
-/* Search bar styling in header */
-.top-header-right .search {
-  flex-grow: 0;
+/* Search bar styling in header (now in the left tool cluster). Let it grow to
+   fill the left column (capped) so it reads as a proper search bar instead of
+   shrinking to just the icon + label. */
+.top-header-left .search {
+  flex: 1 1 auto;
+  min-width: 12rem;
+  max-width: 20rem;
+}
+
+.top-header-left .search > .search-button {
+  width: 100%;
 }
 
 @media all and (max-width: 800px) {
+  /* Flex row so the hamburger can pin left and the tools slide to the right */
   .top-header {
+    display: flex;
+    align-items: center;
     padding: 0.75rem 1rem;
-    grid-template-columns: auto 1fr auto;
   }
 
-  .hamburger-btn {
+  .top-header-left {
+    flex: 1 1 auto;
+    gap: 0.75rem;
+  }
+
+  .top-header-left .hamburger-btn {
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-right: auto; /* push the tool cluster to the right edge */
   }
 
-  /* Hide site title on mobile - it goes in the drawer */
-  .top-header-left .page-title {
-    display: none;
-  }
-
-  /* Hide title in header on mobile - it shows in article body instead */
-  .top-header-center {
+  /* Center (article title) shows in the body; site title lives in the drawer */
+  .top-header-center,
+  .top-header-right {
     display: none;
   }
 
   /* Collapse search to icon on mobile */
-  .top-header-right .search {
+  .top-header-left .search {
+    flex: 0 0 auto !important;
     width: auto !important;
     min-width: auto !important;
     max-width: none !important;
   }
 
-  .top-header-right .search .search-button {
+  .top-header-left .search .search-button {
     width: auto !important;
     padding: 0.25rem;
     border: none;
   }
 
-  .top-header-right .search .search-button p {
+  .top-header-left .search .search-button p {
     display: none !important;
   }
 
   /* Hide reader mode on mobile - doesn't make sense */
-  .top-header-right .readermode {
+  .top-header-left .readermode {
     display: none !important;
   }
-}
-
-/* Reader mode - collapse search to icon */
-:root[reader-mode="on"] .top-header-right .search .search-button p {
-  display: none;
-}
-
-:root[reader-mode="on"] .top-header-right .search .search-button {
-  width: auto;
-  padding: 0.25rem;
 }
 `
 
@@ -199,36 +203,58 @@ export default ((opts: TopHeaderOptions) => {
   TopHeader.afterDOMLoaded = childAfterDOMLoaded + `
 document.addEventListener("nav", () => {
   const hamburger = document.querySelector(".hamburger-btn")
-  const explorer = document.querySelector(".explorer")
   const sidebar = document.querySelector(".sidebar.left")
+  const page = document.querySelector(".page")
 
-  if (!hamburger || !explorer || !sidebar) return
+  if (!hamburger || !sidebar || !page) return
 
-  // Always close drawer on page navigation
-  explorer.classList.add("collapsed")
-  document.documentElement.classList.remove("mobile-no-scroll")
+  // Backdrop lives at the page level (outside the transformed drawer) so it can
+  // dim the whole viewport. Create it once and reuse it across SPA navigations.
+  let backdrop = page.querySelector(".drawer-backdrop")
+  if (!backdrop) {
+    backdrop = document.createElement("div")
+    backdrop.className = "drawer-backdrop"
+    page.appendChild(backdrop)
+  }
 
+  // The drawer's open/closed state is a single explicit class on the sidebar.
+  // Nothing else drives it, so resizing across the mobile breakpoint can never
+  // accidentally pop it open.
   const closeDrawer = () => {
-    explorer.classList.add("collapsed")
+    sidebar.classList.remove("drawer-open")
     document.documentElement.classList.remove("mobile-no-scroll")
+    backdrop.classList.remove("open")
   }
 
   const openDrawer = () => {
-    explorer.classList.remove("collapsed")
+    sidebar.classList.add("drawer-open")
     document.documentElement.classList.add("mobile-no-scroll")
+    backdrop.classList.add("open")
   }
 
   const toggleDrawer = (e) => {
     e.stopPropagation()
-    if (explorer.classList.contains("collapsed")) {
-      openDrawer()
-    } else {
+    if (sidebar.classList.contains("drawer-open")) {
       closeDrawer()
+    } else {
+      openDrawer()
     }
   }
 
+  // Always start closed on navigation. (On tablet/desktop the class is inert,
+  // so this is safe everywhere.)
+  closeDrawer()
+
   hamburger.addEventListener("click", toggleDrawer)
   window.addCleanup(() => hamburger.removeEventListener("click", toggleDrawer))
+
+  // If the window grows past the mobile breakpoint while the drawer is open,
+  // tear it down so we never leave a stray backdrop or scroll-lock behind.
+  const onResize = () => {
+    if (!hamburger.checkVisibility()) closeDrawer()
+  }
+  window.addEventListener("resize", onResize)
+  window.addCleanup(() => window.removeEventListener("resize", onResize))
 
   // Add close button to drawer if not exists
   if (!sidebar.querySelector(".drawer-close")) {
@@ -241,16 +267,9 @@ document.addEventListener("nav", () => {
     window.addCleanup(() => closeBtn.removeEventListener("click", closeDrawer))
   }
 
-  // Close drawer when clicking outside of it
-  const handleOutsideClick = (e) => {
-    if (!explorer.classList.contains("collapsed") &&
-        !sidebar.contains(e.target) &&
-        !hamburger.contains(e.target)) {
-      closeDrawer()
-    }
-  }
-  document.addEventListener("click", handleOutsideClick)
-  window.addCleanup(() => document.removeEventListener("click", handleOutsideClick))
+  // Tapping the backdrop closes the drawer
+  backdrop.addEventListener("click", closeDrawer)
+  window.addCleanup(() => backdrop.removeEventListener("click", closeDrawer))
 })
 `
 

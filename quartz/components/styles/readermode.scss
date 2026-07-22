@@ -1,3 +1,5 @@
+@use "../../styles/variables.scss" as *;
+
 .readermode {
   cursor: pointer;
   padding: 0;
@@ -21,54 +23,54 @@
   }
 }
 
+// Sidebars (and the footer) ease their opacity so entering/leaving reader mode
+// is a smooth fade instead of an abrupt snap.
+.sidebar.left,
+.sidebar.right,
+.page > #quartz-body > footer {
+  transition: opacity 0.25s ease;
+}
+
+// Reader mode focuses on the article: the surrounding chrome fades out AND the
+// grid re-centers/widens the reading column. The header stays full-width and
+// the article column only grows (it never shifts side-to-side), so toggling
+// reader mode never makes the header buttons jump.
 :root[reader-mode="on"] {
   & .sidebar.left,
   & .sidebar.right,
-  & footer {
-    display: none !important;
+  & .page > #quartz-body > footer {
+    opacity: 0;
+    pointer-events: none;
   }
 
-  & #quartz-body {
-    grid-template-columns: 1fr !important;
-    grid-template-areas:
-      "grid-top-header"
-      "grid-center" !important;
+  // Faded sidebars still occupy their (now-shrinking) grid columns; clip them so
+  // their invisible contents can't spill out or spawn a scrollbar mid-animation.
+  & .sidebar.left,
+  & .sidebar.right {
+    overflow: hidden;
   }
 
-  & .page > #quartz-body .center {
-    max-width: 800px !important;
-    min-width: auto !important;
-    margin: 0 auto;
+  // Make the active state obvious so it's clear you're in reader mode
+  & .readermode svg {
+    fill: var(--secondary);
+    stroke: var(--secondary);
+  }
+}
+
+// Animate the grid columns so entering/leaving reader mode glides. Scoped to
+// non-mobile: on mobile the layout is a single column and reader mode is hidden.
+@media all and not ($mobile) {
+  .page > #quartz-body {
+    transition: grid-template-columns 0.3s ease;
   }
 
-  // On mobile, don't change the layout - it's already single column
-  @media all and (max-width: 800px) {
-    & #quartz-body {
-      grid-template-columns: auto !important;
-    }
-
-    & .page > #quartz-body .center {
-      max-width: 100% !important;
-      padding: 0 1rem;
-    }
+  // Collapse the side columns to symmetric flex space and widen the reading
+  // column, so the article centers and grows into the reclaimed room.
+  :root[reader-mode="on"] .page > #quartz-body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 860px) minmax(0, 1fr);
   }
 
-  // Collapse search bar to icon only
-  & .search {
-    width: auto !important;
-    min-width: auto !important;
-    max-width: none !important;
-    flex-grow: 0 !important;
-  }
-
-  & .search .search-button {
-    width: auto !important;
-    min-width: auto !important;
-    padding: 0.25rem;
-    border: none;
-  }
-
-  & .search .search-button p {
-    display: none !important;
+  :root[reader-mode="on"] .center {
+    max-width: 900px;
   }
 }

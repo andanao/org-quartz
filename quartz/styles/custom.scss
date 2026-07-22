@@ -1,11 +1,10 @@
 @use "./variables.scss" as *;
 @use "./base.scss";
 
-// Hide Explorer's mobile hamburger - we use the one in TopHeader instead
-@media all and ($mobile) {
-  .explorer button.mobile-explorer {
-    display: none !important;
-  }
+// Hide Explorer's built-in mobile hamburger everywhere - we drive the drawer
+// from the TopHeader hamburger instead.
+.explorer button.mobile-explorer {
+  display: none !important;
 }
 
 // ET Bembo font
@@ -46,15 +45,14 @@ body {
   color: var(--dark) !important;
 }
 
-// Padding for body content
-.center {
-  padding-right: 1.5rem;
-}
-
-@media (min-width: 1200px) {
+// Symmetric horizontal padding on the reading column for tablet & desktop. The
+// article width and position stay continuous across the 1200px boundary (no
+// jump), and the column reads as centered. On mobile the content uses the
+// symmetric padding from #quartz-body instead.
+@media all and not ($mobile) {
   .center {
     padding-left: 1.5rem;
-    padding-right: 2rem;
+    padding-right: 1.5rem;
   }
 }
 
@@ -98,57 +96,140 @@ article hr:last-of-type,
   border: none;
 }
 
-// Center content max-width
+// Center content max-width.
 .center {
   max-width: 800px;
   margin: 0 auto;
 }
 
-// Tablet: hide right sidebar
+// The base layout sizes `.center` to fill its grid track as a content-box, so
+// its horizontal padding spills the column ~48px past the track (knocking it
+// off-center), and it pins the column to the right on tablet. Our layout uses a
+// fixed, grid-centered reading track instead, so make `.center` a border-box
+// that fills its track exactly and stays centered on every breakpoint.
+.page > #quartz-body .center {
+  box-sizing: border-box;
+  min-width: 0;
+
+  @media all and ($tablet) {
+    margin-right: auto;
+  }
+}
+
+// ============================================================
+//  Mobile-first typography
+//  Mobile is the primary format, so keep it slick: slightly smaller type and a
+//  bit more line spacing than the desktop reading column, so nothing feels
+//  oversized on a phone. (Content padding is symmetric via #quartz-body.)
+// ============================================================
+@media all and ($mobile) {
+  body {
+    font-size: 1rem;
+  }
+
+  h1.article-title {
+    font-size: 1.5rem !important;
+  }
+
+  article h1:not(.article-title) {
+    font-size: 1.3rem !important;
+  }
+
+  article h2 {
+    font-size: 1.2rem;
+  }
+
+  article h3 {
+    font-size: 1.05rem;
+  }
+
+  article p,
+  article li {
+    line-height: 1.7;
+  }
+}
+
+// ============================================================
+//  Responsive layout & mobile drawer
+//
+//  Breakpoints (see variables.scss):
+//    mobile  : < 800px         -> single column, left sidebar becomes a drawer
+//    tablet  : 800px - 1200px  -> 2 columns [left | center], right sidebar hidden
+//    desktop : > 1200px        -> 3 columns [left | center | right]
+// ============================================================
+
+// --- Tablet: right sidebar is hidden (its TOC/Backlinks move into the left) ---
 @media all and ($tablet) {
   .page > #quartz-body .sidebar.right {
     display: none !important;
   }
 }
 
-// Mobile layout
+// --- Desktop & tablet: there is no drawer, so no close button ---
+@media all and not ($mobile) {
+  .page > #quartz-body .sidebar.left .drawer-close {
+    display: none !important;
+  }
+}
+
+// --- Mobile: single column; the left sidebar becomes a slide-in drawer ---
 @media all and ($mobile) {
-  // Ensure hamburger is visible
+  // Sticky top bar so the hamburger stays reachable while scrolling
+  .top-header {
+    position: sticky;
+    top: 0;
+    z-index: 101;
+    background: var(--light);
+  }
+
   .top-header .hamburger-btn {
     display: flex !important;
   }
 
-  // Hide right sidebar on mobile
+  // Right sidebar is never shown on mobile
   .page > #quartz-body .sidebar.right {
     display: none !important;
   }
 
-  // Left sidebar becomes the mobile drawer
+  // The left sidebar IS the drawer
   .page > #quartz-body .sidebar.left {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     bottom: 0 !important;
-    width: 90vw !important;
-    max-width: 90vw !important;
+    width: 80vw !important;
+    max-width: 300px !important;
     height: 100% !important;
-    background-color: var(--light) !important;
+    height: 100dvh !important;
     z-index: 200 !important;
-    padding: 1rem !important;
-    padding-top: 0.5rem !important;
+    padding: 2.75rem 1.1rem 1.5rem 1.25rem !important;
+    font-size: 0.95rem !important;
+    background-color: var(--light) !important;
+    border-right: 1px solid var(--lightgray) !important;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3) !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
-    transform: translateX(-100%) !important;
-    transition: transform 200ms ease, visibility 200ms ease !important;
-    visibility: hidden !important;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3) !important;
-    border-right: 1px solid var(--lightgray) !important;
-    flex-direction: column !important;
-    gap: 0 !important;
     display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    transform: translateX(-100%) !important;
+    visibility: hidden !important;
+    transition:
+      transform 200ms ease,
+      visibility 200ms ease !important;
   }
 
-  // Drawer close button - only visible on mobile
+  // Open state: the hamburger toggles an explicit `.drawer-open` class (set only
+  // by TopHeader.tsx). Keying off an explicit class -- rather than the absence
+  // of `.collapsed` -- means the drawer can never auto-open just because the
+  // window was resized down into the mobile breakpoint.
+  .page > #quartz-body .sidebar.left.drawer-open {
+    transform: translateX(0) !important;
+    visibility: visible !important;
+  }
+
+  // Close (✕) button, injected into the drawer by TopHeader.tsx
   .page > #quartz-body .sidebar.left .drawer-close {
     position: absolute;
     top: 0.5rem;
@@ -164,54 +245,26 @@ article hr:last-of-type,
       color: var(--dark);
     }
   }
-}
 
-// Hide drawer close button on tablet and desktop
-@media all and ($tablet) {
-  .page > #quartz-body .sidebar.left .drawer-close {
-    display: none !important;
-  }
-}
-
-@media all and ($desktop) {
-  .page > #quartz-body .sidebar.left .drawer-close {
-    display: none !important;
-  }
-
-  // When drawer is open (explorer not collapsed)
-  .page > #quartz-body .sidebar.left:has(.explorer:not(.collapsed)) {
-    transform: translateX(0) !important;
-    visibility: visible !important;
-  }
-
-  // Site title in drawer
-  .page > #quartz-body .sidebar.left .page-title {
-    margin: 0 0 0.5rem 0 !important;
-    font-size: 1.2rem !important;
-    order: 1;
-    width: 100%;
-  }
-
-  // Mobile-only wrappers should be full width and visible
+  // Mobile-only components (page title, search, toc, backlinks, graph) stack
+  // full width inside the drawer
   .page > #quartz-body .sidebar.left > .mobile-only {
     display: block !important;
     width: 100% !important;
   }
 
-  // Ensure TOC and backlinks are visible in drawer
-  .page > #quartz-body .sidebar.left .toc.mobile-only,
-  .page > #quartz-body .sidebar.left .backlinks.mobile-only {
-    display: block !important;
+  // Site title at the top of the drawer
+  .page > #quartz-body .sidebar.left .page-title {
+    margin: 0 0 0.5rem 0 !important;
+    font-size: 1.2rem !important;
   }
 
-  // Search in drawer
+  // Search bar spans the drawer
   .page > #quartz-body .sidebar.left .search {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0.5rem 0 !important;
-    order: 2;
     flex: none !important;
-    height: 2rem !important;
   }
 
   .page > #quartz-body .sidebar.left .search .search-button {
@@ -219,13 +272,18 @@ article hr:last-of-type,
     height: 2rem !important;
   }
 
-  // TOC in drawer - collapsible
-  .page > #quartz-body .sidebar.left .toc {
+  // Shared spacing for TOC / Backlinks / Graph blocks
+  .page > #quartz-body .sidebar.left .toc,
+  .page > #quartz-body .sidebar.left .backlinks,
+  .page > #quartz-body .sidebar.left .graph {
     padding: 0 !important;
     margin: 0.5rem 0 !important;
-    order: 3;
-    flex-shrink: 0;
     width: 100%;
+    flex-shrink: 0;
+  }
+
+  // TOC in drawer - compact & scrollable
+  .page > #quartz-body .sidebar.left .toc {
     overflow: visible !important;
 
     & button.toc-header h3 {
@@ -261,14 +319,8 @@ article hr:last-of-type,
     }
   }
 
-  // Backlinks in drawer - collapsible like TOC
+  // Backlinks in drawer
   .page > #quartz-body .sidebar.left .backlinks {
-    padding: 0 !important;
-    margin: 0.5rem 0 !important;
-    order: 4;
-    flex-shrink: 0;
-    width: 100%;
-
     & button.backlinks-header h3 {
       font-size: 0.9rem;
     }
@@ -289,18 +341,10 @@ article hr:last-of-type,
     }
   }
 
-  // Graph in drawer - collapsible
+  // Graph in drawer
   .page > #quartz-body .sidebar.left .graph {
-    padding: 0 !important;
-    margin: 0.5rem 0 !important;
-    order: 5;
-    flex-shrink: 0;
-    width: 100%;
-
-    & button.graph-header {
-      & h3 {
-        font-size: 0.9rem;
-      }
+    & button.graph-header h3 {
+      font-size: 0.9rem;
     }
 
     & .graph-outer {
@@ -309,34 +353,68 @@ article hr:last-of-type,
     }
   }
 
-  // Explorer in drawer - bold header, not collapsible
+  // Explorer sits last (it's the long list) and fills the remaining drawer
+  // height; the drawer itself scrolls. Reset the order/margins that
+  // explorer.scss applies for its own (unused) mobile layout.
   .page > #quartz-body .sidebar.left .explorer {
     width: 100% !important;
-    flex: 1 !important;
+    order: 1 !important;
+    flex: 1 1 auto !important;
     min-height: 0 !important;
-    order: 6;
+    overflow: visible !important;
+    align-self: stretch !important;
+    margin-top: 0.5rem !important;
+    margin-bottom: 0 !important;
+  }
 
-    // Style explorer title - bold and larger
-    & .explorer-toggle.desktop-explorer {
-      display: flex !important;
-      cursor: default;
-      pointer-events: none;
-      margin-top: 0.5rem;
+  // Everything above the explorer keeps DOM order (title, search, toc,
+  // backlinks, graph)
+  .page > #quartz-body .sidebar.left > .mobile-only {
+    order: 0 !important;
+  }
 
-      & h2 {
-        font-size: 1.1rem;
-        margin: 0 0 0.5rem 0;
-        font-weight: bold;
-      }
+  // Explorer title acts as a static, bold section header inside the drawer
+  .page > #quartz-body .sidebar.left .explorer .desktop-explorer {
+    display: flex !important;
+    cursor: default;
+    pointer-events: none;
+    margin-top: 0.5rem;
 
-      // Hide the fold icon
-      & .fold {
-        display: none;
-      }
+    & h2 {
+      font-size: 1rem;
+      margin: 0 0 0.25rem 0;
+      font-weight: bold;
+    }
+
+    & .fold {
+      display: none;
     }
   }
 
+  .page > #quartz-body .sidebar.left .explorer button.mobile-explorer {
+    display: none !important;
+  }
+
+  // Compact, comfortably tappable file list inside the drawer
   .page > #quartz-body .sidebar.left .explorer-content {
+    font-size: 0.9rem;
+
+    & ul li > a {
+      line-height: 1.9;
+    }
+
+    & .folder-container div > a,
+    & .folder-container div > button span {
+      font-size: 0.9rem;
+      line-height: 1.9;
+    }
+  }
+
+  // Neutralize the stock explorer's own fixed-drawer positioning so the file
+  // tree simply flows inside our sidebar drawer.
+  .page > #quartz-body .sidebar.left .explorer-content,
+  .page > #quartz-body .sidebar.left .explorer.collapsed > .explorer-content,
+  .page > #quartz-body .sidebar.left .explorer:not(.collapsed) > .explorer-content {
     position: static !important;
     transform: none !important;
     visibility: visible !important;
@@ -350,22 +428,28 @@ article hr:last-of-type,
     overflow-y: visible !important;
   }
 
-  // Hide explorer's own hamburger since we use TopHeader's
-  .page > #quartz-body .sidebar.left .explorer button.mobile-explorer {
-    display: none !important;
-  }
-
-  // Sticky top header on mobile
-  .top-header {
-    position: sticky;
-    top: 0;
-    z-index: 101;
-    background: var(--light);
-  }
-
-  // Mobile drawer backdrop - hide it, we handle closing differently
+  // We provide our own backdrop; hide the explorer's built-in one
   .page > #quartz-body .sidebar.left .explorer-backdrop {
     display: none !important;
+  }
+}
+
+// Mobile drawer backdrop - injected into `.page` (outside the transformed
+// drawer) by TopHeader.tsx so it can cover the full viewport.
+.drawer-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 150;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+@media all and ($mobile) {
+  .drawer-backdrop.open {
+    display: block;
+    opacity: 1;
   }
 }
 

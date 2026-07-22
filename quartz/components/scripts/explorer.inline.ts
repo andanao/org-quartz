@@ -232,9 +232,17 @@ async function setupExplorer(currentSlug: FullSlug) {
       explorerUl.scrollTop = parseInt(scrollTop)
     } else {
       // try to scroll to the active element if it exists
-      const activeElement = explorerUl.querySelector(".active")
+      const activeElement = explorerUl.querySelector(".active") as HTMLElement | null
       if (activeElement) {
-        activeElement.scrollIntoView({ behavior: "smooth" })
+        // Scroll the explorer's own scroll container to the active item. We do
+        // this manually (rather than scrollIntoView) so it never scrolls the
+        // whole page/window - which would push the header off-screen on load.
+        const container = (explorer.querySelector(".explorer-content") ??
+          explorerUl) as HTMLElement
+        const containerRect = container.getBoundingClientRect()
+        const activeRect = activeElement.getBoundingClientRect()
+        const delta = activeRect.top - containerRect.top - container.clientHeight / 2
+        container.scrollTop += delta
       }
     }
 

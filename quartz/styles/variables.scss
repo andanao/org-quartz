@@ -36,21 +36,31 @@ $mobileGrid: (
       "grid-sidebar-right"\
       "grid-footer"',
 );
+// Tablet & desktop share the SAME geometry: a fixed-width reading column with
+// flexible side columns that soak up the extra space. Because the center track
+// is a fixed max (not a flexing minmax), the article stays the same width and
+// stays centered as the window narrows past the desktop/tablet boundary -- no
+// jump. Tablet simply has its right sidebar empty (its contents are
+// DesktopOnly), so that column becomes symmetric breathing room.
+$readingWidth: 720px;
+$sideMin: 200px;
 $tabletGrid: (
   templateRows: "auto auto auto auto",
-  templateColumns: "clamp(250px, calc(100% - 800px), 450px) minmax(300px, 800px)",
+  // Right column collapses (min 0) when space is tight so the article keeps its
+  // width; at wider tablet sizes it balances the left column and re-centers.
+  templateColumns: "minmax(#{$sideMin}, 1fr) minmax(0, #{$readingWidth}) minmax(0, 1fr)",
   rowGap: "5px",
-  columnGap: "5px",
+  columnGap: "2rem",
   templateAreas:
-    '"grid-top-header grid-top-header"\
-      "grid-sidebar-left grid-center"\
-      "grid-sidebar-left grid-footer"',
+    '"grid-top-header grid-top-header grid-top-header"\
+      "grid-sidebar-left grid-center grid-sidebar-right"\
+      "grid-sidebar-left grid-footer grid-sidebar-right"',
 );
 $desktopGrid: (
   templateRows: "auto auto auto auto",
-  templateColumns: "clamp(250px, calc((100% - 800px - 20px) / 2), 450px) minmax(300px, 800px) clamp(250px, calc((100% - 800px - 20px) / 2), 450px)",
+  templateColumns: "minmax(#{$sideMin}, 1fr) minmax(0, #{$readingWidth}) minmax(#{$sideMin}, 1fr)",
   rowGap: "5px",
-  columnGap: "5px",
+  columnGap: "2rem",
   templateAreas:
     '"grid-top-header grid-top-header grid-top-header"\
       "grid-sidebar-left grid-center grid-sidebar-right"\
