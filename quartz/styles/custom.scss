@@ -54,6 +54,14 @@ body {
     padding-left: 1.5rem;
     padding-right: 1.5rem;
   }
+
+  // The reading column is wide on desktop, and long lines need more leading to
+  // stay readable. The base 1.6rem works out to a tight ~1.45 -- that tightness
+  // is what made the column read as crowded.
+  article p,
+  article li {
+    line-height: 1.75;
+  }
 }
 
 // Left padding for right sidebar contents
@@ -102,18 +110,10 @@ article hr:last-of-type,
   margin: 0 auto;
 }
 
-// The base layout sizes `.center` to fill its grid track as a content-box, so
-// its horizontal padding spills the column ~48px past the track (knocking it
-// off-center), and it pins the column to the right on tablet. Our layout uses a
-// fixed, grid-centered reading track instead, so make `.center` a border-box
-// that fills its track exactly and stays centered on every breakpoint.
+// Border-box so the reading column's horizontal padding stays inside its grid
+// track instead of spilling ~48px past it and knocking the column off-center.
 .page > #quartz-body .center {
   box-sizing: border-box;
-  min-width: 0;
-
-  @media all and ($tablet) {
-    margin-right: auto;
-  }
 }
 
 // ============================================================
@@ -174,14 +174,7 @@ article hr:last-of-type,
 
 // --- Mobile: single column; the left sidebar becomes a slide-in drawer ---
 @media all and ($mobile) {
-  // Sticky top bar so the hamburger stays reachable while scrolling
-  .top-header {
-    position: sticky;
-    top: 0;
-    z-index: 101;
-    background: var(--light);
-  }
-
+  // (The top bar itself is sticky at every breakpoint -- see TopHeader.tsx.)
   .top-header .hamburger-btn {
     display: flex !important;
   }

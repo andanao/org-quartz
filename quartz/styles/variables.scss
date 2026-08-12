@@ -24,45 +24,55 @@ $boldWeight: 700;
 $semiBoldWeight: 600;
 $normalWeight: 400;
 
+// The top header lives outside #quartz-body (see renderPage.tsx) so it can be
+// `position: sticky` against the viewport -- a grid item can only stick within
+// its own grid area, which for a one-row header is nowhere.
 $mobileGrid: (
-  templateRows: "auto auto auto auto auto",
+  templateRows: "auto auto auto auto",
   templateColumns: "auto",
   rowGap: "5px",
   columnGap: "5px",
   templateAreas:
-    '"grid-top-header"\
-      "grid-sidebar-left"\
+    '"grid-sidebar-left"\
       "grid-center"\
       "grid-sidebar-right"\
       "grid-footer"',
 );
-// Tablet & desktop share the SAME geometry: a fixed-width reading column with
-// flexible side columns that soak up the extra space. Because the center track
-// is a fixed max (not a flexing minmax), the article stays the same width and
-// stays centered as the window narrows past the desktop/tablet boundary -- no
-// jump. Tablet simply has its right sidebar empty (its contents are
+// Tablet & desktop share the SAME geometry: a centered reading column with
+// flexible side columns that soak up the extra space. The reading column is
+// fluid so a wide monitor spends its room on the article instead of on empty
+// gutters -- but it's hard-capped, so a 6K display doesn't stretch prose across
+// the whole screen. The width is continuous across the desktop/tablet boundary
+// (no jump); tablet simply has its right sidebar empty (its contents are
 // DesktopOnly), so that column becomes symmetric breathing room.
-$readingWidth: 720px;
+$readingMin: 720px;
+$readingMax: 1020px;
+$readingWidth: clamp(#{$readingMin}, 54vw, #{$readingMax});
+// Reader mode drops both sidebars, so the article gets a little more room.
+$readerWidth: clamp(#{$readingMin}, 62vw, 1100px);
 $sideMin: 200px;
+$sideMax: 420px;
+$columnGap: 2rem;
+// Side columns are `1fr`, so capping the whole band is what stops them from
+// ballooning to 800px of empty space each on an ultrawide. `.page` centers it.
+$maxPageWidth: calc(#{$readingMax} + 2 * #{$sideMax} + 2 * #{$columnGap});
 $tabletGrid: (
-  templateRows: "auto auto auto auto",
+  templateRows: "auto auto",
   // Right column collapses (min 0) when space is tight so the article keeps its
   // width; at wider tablet sizes it balances the left column and re-centers.
   templateColumns: "minmax(#{$sideMin}, 1fr) minmax(0, #{$readingWidth}) minmax(0, 1fr)",
   rowGap: "5px",
-  columnGap: "2rem",
+  columnGap: $columnGap,
   templateAreas:
-    '"grid-top-header grid-top-header grid-top-header"\
-      "grid-sidebar-left grid-center grid-sidebar-right"\
+    '"grid-sidebar-left grid-center grid-sidebar-right"\
       "grid-sidebar-left grid-footer grid-sidebar-right"',
 );
 $desktopGrid: (
-  templateRows: "auto auto auto auto",
+  templateRows: "auto auto",
   templateColumns: "minmax(#{$sideMin}, 1fr) minmax(0, #{$readingWidth}) minmax(#{$sideMin}, 1fr)",
   rowGap: "5px",
-  columnGap: "2rem",
+  columnGap: $columnGap,
   templateAreas:
-    '"grid-top-header grid-top-header grid-top-header"\
-      "grid-sidebar-left grid-center grid-sidebar-right"\
+    '"grid-sidebar-left grid-center grid-sidebar-right"\
       "grid-sidebar-left grid-footer grid-sidebar-right"',
 );

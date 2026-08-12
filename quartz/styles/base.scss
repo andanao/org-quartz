@@ -4,15 +4,24 @@
 @use "./syntax.scss";
 @use "./callouts.scss";
 
+// Measured live by TopHeader.tsx; these are close-enough fallbacks for the
+// first paint so nothing jumps once the script runs.
+:root {
+  --header-height: 4.5rem;
+
+  @media all and ($mobile) {
+    --header-height: 3.5rem;
+  }
+}
+
 html {
   scroll-behavior: smooth;
   text-size-adjust: none;
   overflow-x: hidden;
   width: 100vw;
 
-  @media all and ($mobile) {
-    scroll-padding-top: 4rem;
-  }
+  // The header is always on screen, so anchors have to clear it.
+  scroll-padding-top: calc(var(--header-height) + 1rem);
 }
 
 body {
@@ -179,7 +188,7 @@ a {
 }
 
 .page {
-  max-width: calc(#{map.get($breakpoints, desktop)} + 600px);
+  max-width: #{$maxPageWidth};
   margin: 0 auto;
   & article {
     & > h1 {
@@ -237,13 +246,14 @@ a {
       margin: 0 auto;
     }
 
+    // Sticky under the (also sticky) header rather than under the viewport top.
     & .sidebar {
       gap: 1.2rem;
-      top: 0;
+      top: var(--header-height);
       box-sizing: border-box;
       padding: $topSpacing 2rem 2rem 2rem;
       display: flex;
-      height: 100vh;
+      height: calc(100vh - var(--header-height));
       position: sticky;
     }
 
@@ -308,22 +318,16 @@ a {
       grid-area: grid-footer;
     }
 
+    // Fill the grid track, which is already sized and centered. Auto margins
+    // here would make these shrink-wrap their content and float undersized
+    // inside the track -- that's where the dead space in the margins came from.
+    // `min-width: 0` keeps a wide code block from blowing the track out.
     & .center,
     & footer {
       max-width: 100%;
-      min-width: 100%;
-      margin-left: auto;
-      margin-right: auto;
-      @media all and ($tablet) {
-        margin-right: 0;
-      }
-      @media all and ($mobile) {
-        margin-right: 0;
-        margin-left: 0;
-      }
-    }
-    & footer {
+      min-width: 0;
       margin-left: 0;
+      margin-right: 0;
     }
   }
 }

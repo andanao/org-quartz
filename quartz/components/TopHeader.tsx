@@ -60,14 +60,27 @@ export default ((opts: TopHeaderOptions) => {
     .join("\n")
 
   TopHeader.css = childCss + `
+/* Always on screen: the tools (reader mode, search, theme) never scroll away,
+   and on a shared link the highlighted reader-mode toggle is the cue that
+   there's a whole site behind the page you landed on. */
 .top-header {
-  grid-area: grid-top-header;
+  position: sticky;
+  top: 0;
+  z-index: 101;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 1rem 2rem;
   gap: 1rem;
   background: var(--light);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+/* Hairline only once content has scrolled under it, so a page at rest stays
+   clean. */
+.top-header.scrolled {
+  border-bottom-color: var(--lightgray);
 }
 
 .top-header-left {
@@ -202,6 +215,25 @@ export default ((opts: TopHeaderOptions) => {
 
   TopHeader.afterDOMLoaded = childAfterDOMLoaded + `
 document.addEventListener("nav", () => {
+  const header = document.querySelector(".top-header")
+
+  if (header) {
+    // The sticky sidebars and anchor scroll-padding key off --header-height, so
+    // publish the real measurement instead of trusting the CSS fallback.
+    const setHeaderHeight = () => {
+      document.documentElement.style.setProperty("--header-height", header.offsetHeight + "px")
+    }
+    setHeaderHeight()
+    const headerResize = new ResizeObserver(setHeaderHeight)
+    headerResize.observe(header)
+    window.addCleanup(() => headerResize.disconnect())
+
+    const onScroll = () => header.classList.toggle("scrolled", window.scrollY > 4)
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    window.addCleanup(() => window.removeEventListener("scroll", onScroll))
+  }
+
   const hamburger = document.querySelector(".hamburger-btn")
   const sidebar = document.querySelector(".sidebar.left")
   const page = document.querySelector(".page")

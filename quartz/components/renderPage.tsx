@@ -266,8 +266,10 @@ export function renderPage(
       <Head {...componentData} />
       <body data-slug={slug}>
         <div id="quartz-root" class="page">
+          {/* Outside #quartz-body: a grid item can only stick within its own
+              grid area, so the header has to sit in normal flow to stay put. */}
+          {TopHeader && <TopHeader {...componentData} />}
           <Body {...componentData}>
-            {TopHeader && <TopHeader {...componentData} />}
             {LeftComponent}
             <div class="center">
               <div class="page-header">

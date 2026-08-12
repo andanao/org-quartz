@@ -23,43 +23,56 @@
   }
 }
 
-// Sidebars (and the footer) ease their opacity so entering/leaving reader mode
-// is a smooth fade instead of an abrupt snap.
-.sidebar.left,
-.sidebar.right,
-.page > #quartz-body > footer {
-  transition: opacity 0.25s ease;
+// Make the active state obvious so it's clear you're in reader mode -- and, on
+// a page someone landed on cold, that there's something to turn off.
+:root[reader-mode="on"] .readermode svg {
+  fill: var(--secondary);
+  stroke: var(--secondary);
 }
 
-// Reader mode focuses on the article: the surrounding chrome fades out AND the
-// grid re-centers/widens the reading column. The header stays full-width and
-// the article column only grows (it never shifts side-to-side), so toggling
-// reader mode never makes the header buttons jump.
-:root[reader-mode="on"] {
-  & .sidebar.left,
-  & .sidebar.right,
-  & .page > #quartz-body > footer {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  // Faded sidebars still occupy their (now-shrinking) grid columns; clip them so
-  // their invisible contents can't spill out or spawn a scrollbar mid-animation.
-  & .sidebar.left,
-  & .sidebar.right {
-    overflow: hidden;
-  }
-
-  // Make the active state obvious so it's clear you're in reader mode
-  & .readermode svg {
-    fill: var(--secondary);
-    stroke: var(--secondary);
-  }
-}
-
-// Animate the grid columns so entering/leaving reader mode glides. Scoped to
-// non-mobile: on mobile the layout is a single column and reader mode is hidden.
+// Everything below is non-mobile only. On mobile the layout is already a single
+// column and the left sidebar is the drawer, so reader mode must be inert --
+// otherwise the default-on state would fade out the drawer and kill the menu.
 @media all and not ($mobile) {
+  // Sidebars (and the footer) ease their opacity so entering/leaving reader
+  // mode is a smooth fade instead of an abrupt snap.
+  .sidebar.left,
+  .sidebar.right,
+  .page > #quartz-body > footer {
+    transition: opacity 0.25s ease;
+  }
+
+  // Reader mode focuses on the article: the surrounding chrome fades out AND
+  // the grid re-centers/widens the reading column. The header stays full-width
+  // and the article column only grows (it never shifts side-to-side), so
+  // toggling reader mode never makes the header buttons jump.
+  :root[reader-mode="on"] {
+    & .sidebar.left,
+    & .sidebar.right,
+    & .page > #quartz-body > footer {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    // The explorer re-enables pointer events on its own links and fold icons
+    // (explorer.scss), which beats `pointer-events: none` on the sidebar and
+    // leaves invisible links hovering popovers and swallowing clicks. Kill hit
+    // testing on the whole subtree.
+    & .sidebar.left *,
+    & .sidebar.right * {
+      pointer-events: none;
+    }
+
+    // Faded sidebars still occupy their (now-shrinking) grid columns; clip them
+    // so their invisible contents can't spill out or spawn a scrollbar
+    // mid-animation.
+    & .sidebar.left,
+    & .sidebar.right {
+      overflow: hidden;
+    }
+  }
+
+  // Animate the grid columns so entering/leaving reader mode glides.
   .page > #quartz-body {
     transition: grid-template-columns 0.3s ease;
   }
@@ -67,10 +80,6 @@
   // Collapse the side columns to symmetric flex space and widen the reading
   // column, so the article centers and grows into the reclaimed room.
   :root[reader-mode="on"] .page > #quartz-body {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 860px) minmax(0, 1fr);
-  }
-
-  :root[reader-mode="on"] .center {
-    max-width: 900px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, #{$readerWidth}) minmax(0, 1fr);
   }
 }

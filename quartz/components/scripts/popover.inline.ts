@@ -120,6 +120,11 @@ function clearActivePopover() {
   allPopoverElements.forEach((popoverElement) => popoverElement.classList.remove("active-popover"))
 }
 
+// Entering reader mode hides the sidebars out from under the cursor without
+// firing `mouseleave` on whatever link was there, which would otherwise strand
+// an open popover on screen.
+document.addEventListener("readermodechange", clearActivePopover)
+
 function attachPopoverToLink(link: HTMLAnchorElement) {
   link.addEventListener("mouseenter", mouseEnterHandler)
   link.addEventListener("mouseleave", clearActivePopover)
