@@ -16,7 +16,7 @@ KONFIG_CONFIG = Path.home() / "git/konfig/readme.org"  # Work config (combined o
 CONTENT_DIR = Path(__file__).parent / "content"
 EXPORT_EL = Path(__file__).parent / "export.el"
 
-EXCLUDE_TAGS = {"private", "monthly", "ppl", "yof", "love"}  # Tags that exclude a file from publishing
+EXCLUDE_TAGS = {"private", "monthly", "ppl", "yof", "love", "cui"}  # Tags that exclude a file from publishing
 EXCLUDE_DIRS = {"daily", ".git"}  # Keep data/ for attachments
 IMG_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
 
