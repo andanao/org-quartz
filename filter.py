@@ -188,7 +188,272 @@ def build_roam_map(source_dirs: list[Path], exclude_dirs: set) -> dict[str, str]
     return roam_map
 
 
-def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = None, extra_tags: list[str] = None) -> str:
+HEADING_RE = re.compile(r"^(\*+)\s")
+TRANSCLUDE_RE = re.compile(r"(?im)^[ \t]*#\+transclude:[ \t]*(.*)$")
+TRANSCLUDE_MAX_DEPTH = 3
+# File-level keywords never make sense inlined into a host file - a stray
+# #+title: mid-document would fight with the host's own title.
+TRANSCLUDE_DROP_KEYWORDS = re.compile(
+    r"(?i)^#\+(title|filetags|date|author|identifier|category|setupfile|startup|options|export_\w+):"
+)
+
+
+def build_id_index(source_dirs: list[Path]) -> dict[str, tuple[Path, int]]:
+    """Map org ID -> (file, heading line index) for transclusion targets.
+
+    Heading line index is -1 when the ID belongs to the file rather than a
+    heading (i.e. it sits in the pre-first-heading PROPERTIES drawer), meaning
+    the whole file is the transclusion target.
+
+    Unlike `build_roam_map` this indexes excluded dirs too - resolution and
+    publishability are separate questions, and `_transclude_source_excluded`
+    handles the latter.
+    """
+    index = {}
+    for source_dir in source_dirs:
+        if not source_dir.exists():
+            continue
+        for org_file in source_dir.rglob("*.org"):
+            if org_file.name.startswith(".#") or org_file.name.startswith("#"):
+                continue
+            if ".git" in org_file.parts:
+                continue
+            try:
+                lines = org_file.read_text().split("\n")
+            except Exception:
+                continue
+            in_block = _block_line_mask(lines)
+            heading_line = -1
+            for i, line in enumerate(lines):
+                if i not in in_block and HEADING_RE.match(line):
+                    heading_line = i
+                    continue
+                m = re.match(r"^\s*:ID:\s*(\S+)\s*$", line)
+                if m:
+                    index.setdefault(m.group(1).lower(), (org_file, heading_line))
+    return index
+
+
+def _block_line_mask(lines: list[str]) -> set[int]:
+    """Line indices sitting inside #+begin_.../#+end_... blocks.
+
+    Used so a line starting with `*` inside a src or example block is not
+    mistaken for a heading - the emacs config notes are full of those.
+    """
+    inside = set()
+    depth = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip().lower()
+        if stripped.startswith("#+begin_"):
+            depth += 1
+            inside.add(i)
+        elif stripped.startswith("#+end_"):
+            depth = max(0, depth - 1)
+            inside.add(i)
+        elif depth:
+            inside.add(i)
+    return inside
+
+
+def _subtree_lines(lines: list[str], start: int) -> list[str]:
+    """Lines of the subtree whose heading is at index `start`."""
+    in_block = _block_line_mask(lines)
+    level = len(HEADING_RE.match(lines[start]).group(1))
+    for i in range(start + 1, len(lines)):
+        m = HEADING_RE.match(lines[i])
+        if m and i not in in_block and len(m.group(1)) <= level:
+            return lines[start:i]
+    return lines[start:]
+
+
+def _strip_drawers(lines: list[str]) -> list[str]:
+    """Drop :PROPERTIES:/:LOGBOOK: style drawers."""
+    out, in_drawer = [], False
+    for line in lines:
+        stripped = line.strip().upper()
+        if in_drawer:
+            if stripped == ":END:":
+                in_drawer = False
+            continue
+        if re.match(r"^:[A-Z_]+:$", stripped) and stripped != ":END:":
+            in_drawer = True
+            continue
+        out.append(line)
+    return out
+
+
+def _first_quote_block(lines: list[str]) -> list[str] | None:
+    """The first #+begin_quote...#+end_quote block, inclusive."""
+    start = None
+    for i, line in enumerate(lines):
+        stripped = line.strip().lower()
+        if start is None and stripped.startswith("#+begin_quote"):
+            start = i
+        elif start is not None and stripped.startswith("#+end_quote"):
+            return lines[start:i + 1]
+    return None
+
+
+def _shift_heading_level(lines: list[str], level: int) -> list[str]:
+    """Re-level headings so the shallowest one sits at `level`."""
+    in_block = _block_line_mask(lines)
+    depths = [
+        len(m.group(1))
+        for i, m in ((i, HEADING_RE.match(l)) for i, l in enumerate(lines))
+        if m and i not in in_block
+    ]
+    if not depths:
+        return lines
+    delta = level - min(depths)
+    if delta == 0:
+        return lines
+    out = []
+    for i, line in enumerate(lines):
+        m = HEADING_RE.match(line)
+        if m and i not in in_block:
+            stars = max(1, len(m.group(1)) + delta)
+            line = "*" * stars + line[len(m.group(1)):]
+        out.append(line)
+    return out
+
+
+def _heading_tags(heading: str) -> set[str]:
+    """Tags trailing an org heading, e.g. `* Title :work:private:`."""
+    m = re.search(r"\s:([A-Za-z0-9_@#%:]+):\s*$", heading)
+    return {t.lower() for t in m.group(1).split(":") if t} if m else set()
+
+
+def _transclude_source_excluded(src: Path, heading: str | None) -> bool:
+    """Whether a transclusion source is off-limits for publishing.
+
+    Transcluding inlines the source's text into a published page, so anything
+    we would refuse to publish on its own must not leak in this way either.
+    """
+    if any(part in EXCLUDE_DIRS for part in src.parts):
+        return True
+    if has_excluded_tag(src):
+        return True
+    if heading and _heading_tags(heading) & EXCLUDE_TAGS:
+        return True
+    return False
+
+
+def _resolve_transclude_target(link: str, org_file: Path, id_index: dict) -> tuple[Path, list[str]] | None:
+    """Resolve a transclusion link to (source file, target lines)."""
+    link = link.strip()
+
+    if link.lower().startswith("id:"):
+        entry = id_index.get(link[3:].strip().lower())
+        if not entry:
+            return None
+        src, heading_line = entry
+        try:
+            lines = src.read_text().split("\n")
+        except Exception:
+            return None
+        if heading_line < 0:
+            return src, lines
+        if heading_line >= len(lines) or not HEADING_RE.match(lines[heading_line]):
+            return None  # source moved since the index was built
+        return src, _subtree_lines(lines, heading_line)
+
+    if link.lower().startswith("file:"):
+        path_part = link[5:].strip()
+        search = None
+        if "::" in path_part:
+            path_part, search = path_part.split("::", 1)
+        src = Path(path_part).expanduser()
+        if not src.is_absolute():
+            src = (org_file.parent / src).resolve()
+        if not src.is_file():
+            return None
+        try:
+            lines = src.read_text().split("\n")
+        except Exception:
+            return None
+        if not search:
+            return src, lines
+        target = search.lstrip("*").strip().lower()
+        in_block = _block_line_mask(lines)
+        for i, line in enumerate(lines):
+            if i in in_block or not HEADING_RE.match(line):
+                continue
+            title = HEADING_RE.sub("", line, count=1)
+            title = re.sub(r"\s:([A-Za-z0-9_@#%:]+):\s*$", "", title).strip()
+            if title.lower() == target:
+                return src, _subtree_lines(lines, i)
+        return None
+
+    return None
+
+
+def expand_transclusions(content: str, org_file: Path, id_index: dict,
+                         depth: int = 0, skipped: list = None) -> str:
+    """Inline `#+transclude:` directives so their content reaches the export.
+
+    org-transclusion resolves these live in the editor; the batch exporter
+    never loads it, so without this the keyword is just an unknown keyword and
+    ox-md drops it (content silently missing from the published page).
+
+    Supports the flags actually in use: `:only-quote` (a custom flag from the
+    emacs config that grabs the source's first quote block), `:only-contents`,
+    `:exclude-elements` and `:level`.
+    """
+    if "#+transclude:" not in content.lower():
+        return content
+    if depth >= TRANSCLUDE_MAX_DEPTH:
+        return TRANSCLUDE_RE.sub("", content)
+
+    def replace(match):
+        directive = match.group(1).strip()
+        link_match = re.match(r"\[\[([^\]]+)\](?:\[([^\]]*)\])?\]", directive)
+        if not link_match:
+            return ""
+        link = link_match.group(1)
+        options = directive[link_match.end():]
+
+        resolved = _resolve_transclude_target(link, org_file, id_index)
+        if not resolved:
+            if skipped is not None:
+                skipped.append(f"{org_file.name}: unresolved transclude {link}")
+            return ""
+        src, lines = resolved
+
+        heading = lines[0] if lines and HEADING_RE.match(lines[0]) else None
+        if _transclude_source_excluded(src, heading):
+            if skipped is not None:
+                skipped.append(f"{org_file.name}: excluded transclude source {src.name}")
+            return ""
+
+        if ":only-quote" in options:
+            quote = _first_quote_block(lines)
+            if quote is None:
+                if skipped is not None:
+                    skipped.append(f"{org_file.name}: no quote block in {src.name}")
+                return ""
+            lines = quote
+        else:
+            if ":only-contents" in options and heading:
+                lines = lines[1:]
+            lines = _strip_drawers(lines)
+            lines = [l for l in lines if not TRANSCLUDE_DROP_KEYWORDS.match(l)]
+            level_match = re.search(r":level\s+(\d+)", options)
+            if level_match:
+                lines = _shift_heading_level(lines, int(level_match.group(1)))
+
+        body = "\n".join(lines).strip("\n")
+        if not body:
+            return ""
+        # Recurse so a transcluded note can itself transclude, relative to its
+        # own location.
+        return expand_transclusions(body, src, id_index, depth + 1, skipped)
+
+    return TRANSCLUDE_RE.sub(replace, content)
+
+
+def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = None,
+                        extra_tags: list[str] = None, id_index: dict = None,
+                        transclude_skips: list = None) -> str:
     """Preprocess org file content - convert attachment, ID, and roam links."""
     content = org_file.read_text()
     roam_map = roam_map or {}
@@ -228,6 +493,11 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
             content,
             flags=re.IGNORECASE
         )
+
+    # Inline org-transclusion content before any link/attachment rewriting, so
+    # transcluded text goes through the same pipeline as the host file's own.
+    if id_index is not None:
+        content = expand_transclusions(content, org_file, id_index, skipped=transclude_skips)
 
     # Normalize multi-line links: join lines within [[...]] brackets
     # Skip code blocks to avoid mangling elisp with org link syntax
@@ -525,6 +795,12 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
     roam_map = build_roam_map(source_dirs, EXCLUDE_DIRS)
     print(f"Found {len(roam_map)} roam names/aliases")
 
+    # Build ID index for org-transclusion targets
+    print("Building transclusion ID index...")
+    id_index = build_id_index(source_dirs)
+    print(f"Indexed {len(id_index)} IDs")
+    transclude_skips = []
+
     # Collect and preprocess files
     files_to_export = []  # (org_file, extra_tags)
     skipped = 0
@@ -562,11 +838,16 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
         staged = staging_dir / f"{slug}.org"
         output = output_dir / f"{slug}.md"
 
-        content = preprocess_org_file(org_file, attachments_map, roam_map, extra_tags)
+        content = preprocess_org_file(org_file, attachments_map, roam_map, extra_tags,
+                                      id_index, transclude_skips)
         staged.write_text(content)
         file_pairs.append((str(staged), str(output)))
 
     print(f"Preprocessed {len(file_pairs)} files, found {len(attachments_map)} attachments")
+    if transclude_skips:
+        print(f"Skipped {len(transclude_skips)} transclusions:")
+        for note in transclude_skips:
+            print(f"  - {note}")
 
     # Batch export with Emacs (single process)
     print("Exporting to markdown (batch)...")
