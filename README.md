@@ -1,6 +1,6 @@
 # org-quartz
 
-Publish org-roam notes as a static site using Quartz.
+Publish org-roam notes as a static site using Quartz. Public version hosted at [andanao.github.io/org-quartz/](https://andanao.github.io/org-quartz/)
 
 ! This has been almost entirely done through claude-code
 
