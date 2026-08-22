@@ -9,6 +9,8 @@ import urllib.parse
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import diagrams
+
 PERSONAL_DIR = Path.home() / "git/org/personal"
 K2_DIR = Path.home() / "git/org/k2"
 EMACS_CONFIG = Path.home() / "git/emacs/readme.org"  # Public emacs config
@@ -19,6 +21,14 @@ EXPORT_EL = Path(__file__).parent / "export.el"
 EXCLUDE_TAGS = {"private", "monthly", "ppl", "yof", "love", "cui"}  # Tags that exclude a file from publishing
 EXCLUDE_DIRS = {"daily", ".git"}  # Keep data/ for attachments
 IMG_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
+
+# `[[file:img/x.svg]]`, `[[./img/x.svg][alt]]` - a relative path to an image,
+# as opposed to an absolute one, a URL, or an `id:`/`attachment:` link.
+REL_IMG_LINK_RE = re.compile(
+    r'\[\[(?:file:)?(?!/|[A-Za-z][A-Za-z0-9+.-]*:)'
+    r'([^\]\n]+\.(?:png|jpe?g|gif|webp|svg|bmp))\](?:\[[^\]]*\])?\]',
+    re.IGNORECASE,
+)
 
 
 def slugify_attachment_name(filename: str) -> str:
@@ -499,6 +509,11 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
     if id_index is not None:
         content = expand_transclusions(content, org_file, id_index, skipped=transclude_skips)
 
+    # Compile TikZ/D2 sources to SVG. Runs after transclusion so diagrams that
+    # arrive from another note render too, and before link rewriting so the
+    # placeholders it leaves behind go through the attachment path.
+    content = diagrams.rewrite_diagrams(content, attachments_map)
+
     # Normalize multi-line links: join lines within [[...]] brackets
     # Skip code blocks to avoid mangling elisp with org link syntax
     def join_multiline_links(text):
@@ -577,6 +592,19 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
             return match.group(0)
 
         content = re.sub(r'\[\[attachment:([^\]]+)\]\]', replace_attach, content)
+
+    # Relative image links, e.g. `[[file:img/plot.svg]]` written by a babel
+    # block's `#+RESULTS:`. Emacs resolves them against the note's directory;
+    # Quartz only sees content/, so copy the target in as an attachment.
+    def replace_relative_image(match):
+        target = (org_file.parent / match.group(1)).resolve()
+        if not target.is_file():
+            return match.group(0)
+        slug = slugify_attachment_name(target.name)
+        attachments_map[slug] = target
+        return f'IMGATTACH:{slug.replace("_", "USCORE")}:ENDIMG'
+
+    content = REL_IMG_LINK_RE.sub(replace_relative_image, content)
 
     # Clean up the title line - strip all links, keep just text
     def clean_title_line(match):
@@ -833,6 +861,7 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
     # Preprocess all files (fast - pure Python)
     print("Preprocessing attachments...")
     file_pairs = []  # (staged_org, output_md)
+    staged_contents = []  # (staged_org, content) - written after diagrams render
     for org_file, extra_tags in files_to_export:
         slug = get_slug(org_file)
         staged = staging_dir / f"{slug}.org"
@@ -840,7 +869,7 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
 
         content = preprocess_org_file(org_file, attachments_map, roam_map, extra_tags,
                                       id_index, transclude_skips)
-        staged.write_text(content)
+        staged_contents.append((staged, content))
         file_pairs.append((str(staged), str(output)))
 
     print(f"Preprocessed {len(file_pairs)} files, found {len(attachments_map)} attachments")
@@ -848,6 +877,16 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
         print(f"Skipped {len(transclude_skips)} transclusions:")
         for note in transclude_skips:
             print(f"  - {note}")
+
+    # Compile any diagram that missed the cache, then stage. Staging waits on
+    # the render so a failed one can have its source put back before export.
+    print("Rendering diagrams...")
+    rendered, failed = diagrams.flush()
+    print(f"Rendered {rendered} diagrams, {len(failed)} failed, "
+          f"pruned {diagrams.prune()} stale")
+
+    for staged, content in staged_contents:
+        staged.write_text(diagrams.restore_failed(content, failed))
 
     # Batch export with Emacs (single process)
     print("Exporting to markdown (batch)...")
@@ -874,11 +913,14 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
     print("Copying attachments...")
     attachments_dir = output_dir / "attachments"
     attachments_dir.mkdir(parents=True, exist_ok=True)
+    copied = 0
     for filename, src_path in attachments_map.items():
         dest = attachments_dir / filename
-        if not dest.exists():
-            shutil.copy2(src_path, dest)
-    print(f"Copied {len(attachments_map)} attachments")
+        if dest.exists() or not src_path.exists():  # a diagram whose render failed
+            continue
+        shutil.copy2(src_path, dest)
+        copied += 1
+    print(f"Copied {copied} attachments")
 
     # Post-process: resolve ID links
     print("Resolving ID links...")
@@ -896,6 +938,9 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
 
     print("Fixing attachment placeholders...")
     fix_attachment_placeholders(output_dir)
+
+    print("Wrapping bare math environments...")
+    fix_math_environments(output_dir)
 
     # Rewrite local file: links that point into org-attach data/ dirs
     print("Fixing local file: attachment links...")
@@ -1014,6 +1059,61 @@ def strip_attach_heading_tags(output_dir: Path):
             fixed += 1
 
     print(f"Stripped :ATTACH: heading tags in {fixed} files")
+
+
+# amsmath environments KaTeX can render, but only inside math delimiters.
+MATH_ENVS = (
+    "align", "alignat", "aligned", "alignedat", "cases", "darray", "dcases",
+    "eqnarray", "equation", "flalign", "gather", "gathered", "multline",
+    "rcases", "split", "subarray",
+)
+MATH_ENV_BEGIN_RE = re.compile(
+    r"^\\begin\{(" + "|".join(MATH_ENVS) + r")(\*?)\}\s*$"
+)
+
+
+def fix_math_environments(output_dir: Path):
+    """Wrap bare `\\begin{align*}`-style blocks in `$$` so KaTeX picks them up.
+
+    Org exports a LaTeX environment verbatim, but Quartz's math transformer
+    only looks inside `$...$` and `$$...$$`, so an unwrapped environment ships
+    to the browser as literal backslashes.
+    """
+    fixed = 0
+    for md_file in output_dir.glob("*.md"):
+        lines = md_file.read_text().split("\n")
+        out, changed = [], False
+        in_fence = in_math = False
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                in_fence = not in_fence
+            elif stripped == "$$":
+                in_math = not in_math
+
+            begin = None if (in_fence or in_math) else MATH_ENV_BEGIN_RE.match(line)
+            if begin:
+                env = begin.group(1) + begin.group(2)
+                end = f"\\end{{{env}}}"
+                close = next((j for j in range(i + 1, len(lines))
+                              if lines[j].strip() == end), None)
+                if close is not None:
+                    out.extend(["$$", *lines[i:close + 1], "$$"])
+                    changed = True
+                    i = close + 1
+                    continue
+
+            out.append(line)
+            i += 1
+
+        if changed:
+            md_file.write_text("\n".join(out))
+            fixed += 1
+
+    print(f"Wrapped math environments in {fixed} files")
 
 
 def fix_attachment_placeholders(output_dir: Path):

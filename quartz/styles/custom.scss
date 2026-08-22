@@ -510,3 +510,18 @@ a.internal.tag-link {
     color: var(--dark) !important;
   }
 }
+
+// Build-time-rendered diagrams (TikZ, pgfplots, D2 - see diagrams.py)
+img[src*="/attachments/diagram-"] {
+  display: block;
+  margin: 1.75rem auto;
+  max-width: 100%;
+  height: auto;
+}
+
+// The SVGs are baked light-mode, so dark mode inverts them: monochrome TikZ
+// line art flips black-on-transparent to white-on-transparent, and the hue
+// rotation puts D2's blues back where they started after the invert.
+[saved-theme="dark"] img[src*="/attachments/diagram-"] {
+  filter: invert(1) hue-rotate(180deg);
+}
