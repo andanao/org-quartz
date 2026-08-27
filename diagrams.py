@@ -14,6 +14,8 @@ Callers `rewrite_diagrams()` during preprocessing (cheap - it only reserves
 filenames), then `flush()` once to compile everything that missed the cache.
 """
 
+from __future__ import annotations
+
 import hashlib
 import os
 import re
@@ -49,7 +51,13 @@ LATEX_PREAMBLE = r"""\usepackage{tikz}
 # hands those to KaTeX instead, which keeps them selectable text.
 DRAWING_ENVS = ("tikzpicture", "tikzcd", "forest", "circuitikz")
 
-SRC_LANGS = {"latex", "d2"}
+# `:exports` to assume when a block doesn't say. Org's stock default is
+# `code', but the emacs config overrides it per language - see
+# `org-babel-default-header-args:d2' in ~/git/emacs/readme.org - and a d2
+# block with a bare header is meant to publish as the drawing, not the source.
+DEFAULT_EXPORTS = {"d2": "results", "latex": "code"}
+
+SRC_LANGS = set(DEFAULT_EXPORTS)
 
 SRC_BEGIN_RE = re.compile(r"^[ \t]*#\+begin_src[ \t]+([A-Za-z0-9_+-]+)(.*)$", re.I)
 SRC_END_RE = re.compile(r"^[ \t]*#\+end_src[ \t]*$", re.I)
@@ -93,6 +101,10 @@ def flush(max_workers: int = 4) -> tuple[int, set[str]]:
         try:
             renderer = _render_latex if kind == "latex" else _render_d2
             renderer(body, cache_path(slug))
+            # d2 writes its output 0600 whatever the umask, and that mode
+            # rides all the way to the web root, where the server is another
+            # user and answers 403.
+            cache_path(slug).chmod(0o644)
             return slug, None
         except Exception as e:
             return slug, str(e)
@@ -167,7 +179,8 @@ def rewrite_diagrams(content: str, attachments_map: dict) -> str:
                 continue
             body = "\n".join(lines[i + 1:end])
             after = _skip_results(lines, end + 1)
-            exports = (_header_value(header, "exports") or "code").lower()
+            exports = (_header_value(header, "exports")
+                       or DEFAULT_EXPORTS[lang]).lower()
             if exports in ("results", "both"):
                 if exports == "both":
                     out.extend(lines[i:end + 1])

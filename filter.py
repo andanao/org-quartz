@@ -919,6 +919,9 @@ def filter_and_export(source_dirs: list[Path], output_dir: Path, parallel: int =
         if dest.exists() or not src_path.exists():  # a diagram whose render failed
             continue
         shutil.copy2(src_path, dest)
+        # copy2 preserves the source mode, and these end up in a web root
+        # served by another user - anything group/other-unreadable 403s.
+        dest.chmod(0o644)
         copied += 1
     print(f"Copied {copied} attachments")
 
