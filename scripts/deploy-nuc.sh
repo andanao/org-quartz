@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 
 echo "=== Building combined site ==="
 python3 filter.py combined
-npx quartz build
+QUARTZ_SHARE_UI=1 npx quartz build
 ./scripts/fix-html-attachments.sh
 
 echo "=== Deploying to NUC ==="

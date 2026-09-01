@@ -1,11 +1,16 @@
 import { PageLayout, SharedLayout } from "./quartz/cfg"
 import * as Component from "./quartz/components"
 
+// The share controls export a note as a standalone file for someone outside the
+// network. Gated on an env var rather than hidden with CSS so the public build
+// ships neither the markup nor the script -- see scripts/build.sh.
+const shareTools = process.env.QUARTZ_SHARE_UI ? [Component.ShareButton()] : []
+
 // components shared across all pages
 export const sharedPageComponents: SharedLayout = {
   head: Component.Head(),
   header: [],
-  afterBody: [],
+  afterBody: shareTools,
   footer: Component.Footer({
     links: {
       GitHub: "https://github.com/andanao/org-quartz",

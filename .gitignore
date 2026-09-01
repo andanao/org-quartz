@@ -13,3 +13,7 @@ __pycache__/**
 **.pyc
 layout-mockup.html
 .diagram-cache/
+
+# CLI export output, not the quartz/share/ module
+/share/
+.share-cache/
