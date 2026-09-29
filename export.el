@@ -51,13 +51,39 @@ Shows tangle destination if present."
       org-export-with-latex nil  ; Don't process LaTeX (avoid \( \) becoming $)
       org-md-headline-style 'atx)
 
-(defun org--get-filetags ()
-  "Extract filetags from current buffer."
+(defun org--keyword-value (regexp)
+  "Return group 1 of the first REGEXP match that is a real keyword element.
+A `#+KEYWORD:' line quoted inside an example, src or quote block is
+literal text, not file metadata - a note that shows off a broken
+`#+TITLE:' should not end up titled by it."
   (save-excursion
     (goto-char (point-min))
-    (when (re-search-forward "^#\\+filetags:\\s-*\\(.*\\)$" nil t)
-      (let ((tags-str (match-string 1)))
-        (delete "" (split-string tags-str ":"))))))
+    (let ((case-fold-search t))
+      (catch 'found
+        (while (re-search-forward regexp nil t)
+          ;; Grab the value before `org-element-at-point' clobbers match data.
+          (let ((value (match-string-no-properties 1)))
+            (when (eq (org-element-type (org-element-at-point)) 'keyword)
+              (throw 'found (string-trim value)))))
+        nil))))
+
+(defun org--sanitize (text)
+  "Strip control characters from TEXT.
+A raw control byte - org-capture emits one when a template escape such as
+`%\\1' is read as an octal escape - is illegal inside a double-quoted YAML
+scalar and aborts the whole Quartz build on that one file."
+  (when text
+    (replace-regexp-in-string "[[:cntrl:]]" "" text)))
+
+(defun org--get-title ()
+  "Extract #+TITLE from current buffer."
+  (org--keyword-value "^#\\+title:\\s-*\\(.*\\)$"))
+
+(defun org--get-filetags ()
+  "Extract filetags from current buffer."
+  (let ((tags-str (org--keyword-value "^#\\+filetags:\\s-*\\(.*\\)$")))
+    (when tags-str
+      (delete "" (split-string tags-str ":")))))
 
 (defun org--get-id ()
   "Extract ID property from current buffer."
@@ -68,10 +94,7 @@ Shows tangle destination if present."
 
 (defun org--get-date ()
   "Extract #+DATE from current buffer."
-  (save-excursion
-    (goto-char (point-min))
-    (when (re-search-forward "^#\\+[Dd][Aa][Tt][Ee]:\\s-*\\(.*\\)$" nil t)
-      (string-trim (match-string 1)))))
+  (org--keyword-value "^#\\+date:\\s-*\\(.*\\)$"))
 
 (defun org--strip-links (text)
   "Remove org link markup from TEXT, keeping descriptions."
@@ -88,10 +111,14 @@ Shows tangle destination if present."
     (insert-file-contents input-file)
     (org-mode)
     ;; Extract metadata
-    (let* ((title (org--strip-links (or (org-get-title) (file-name-base input-file))))
-           (id (org--get-id))
-           (date (org--get-date))
-           (tags (org--get-filetags))
+    (let* ((found-title (org--strip-links (org--get-title)))
+           (title (org--sanitize
+                   (if (and found-title (> (length (string-trim found-title)) 0))
+                       found-title
+                     (file-name-base input-file))))
+           (id (org--sanitize (org--get-id)))
+           (date (org--sanitize (org--get-date)))
+           (tags (mapcar #'org--sanitize (org--get-filetags)))
            ;; Export body to markdown with fenced code blocks
            (content (org-export-as 'md-fenced nil nil t)))
       ;; Write frontmatter + content

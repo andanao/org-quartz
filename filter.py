@@ -126,6 +126,37 @@ def get_date_from_mtime(org_file: Path) -> str:
     return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d")
 
 
+FIRST_HEADING_RE = re.compile(r"^\*+\s", re.MULTILINE)
+
+
+def split_org_header(content: str) -> tuple[str, str]:
+    """Split CONTENT into (header, body) at the first org heading.
+
+    Only the header carries file-level keywords; a #+title: or #+date:
+    further down is body text - typically quoted inside an example block -
+    and must not be treated as, or written next to, real metadata.
+    """
+    match = FIRST_HEADING_RE.search(content)
+    if match:
+        return content[: match.start()], content[match.start():]
+    return content, ""
+
+
+def insert_header_keyword(content: str, keyword: str) -> str:
+    """Add KEYWORD to CONTENT's org header, after #+title: when there is one."""
+    header, body = split_org_header(content)
+    new_header, count = re.subn(
+        r"(?im)^(#\+title:[^\n]*\n)",
+        lambda m: m.group(1) + keyword + "\n",
+        header,
+        count=1,
+    )
+    if count:
+        return new_header + body
+    # Archive files start straight at a heading and have no header at all.
+    return keyword + "\n" + content
+
+
 def get_slug(org_file: Path) -> str:
     """Generate a URL-friendly slug from org title or filename."""
     # Try to get title first
@@ -469,40 +500,27 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
     roam_map = roam_map or {}
     extra_tags = extra_tags or []
 
-    # Add extra tags to filetags line (only in header, first 20 lines)
+    # Add extra tags to filetags line (only in the header)
     if extra_tags:
         extra_tags_str = ":" + ":".join(extra_tags) + ":"
-        lines = content.split('\n')
-        header_lines = lines[:20]
-        header_text = '\n'.join(header_lines)
+        header, body = split_org_header(content)
+        header_lines = header.split('\n')
 
         # Check if filetags exists in header only
-        if re.search(r'(?i)^#\+filetags:', header_text, re.MULTILINE):
+        if re.search(r'(?i)^#\+filetags:', header, re.MULTILINE):
             # Append to existing filetags in header
             for i, line in enumerate(header_lines):
                 if line.lower().startswith('#+filetags:'):
-                    lines[i] = line.rstrip() + extra_tags_str
+                    header_lines[i] = line.rstrip() + extra_tags_str
                     break
-            content = '\n'.join(lines)
+            content = '\n'.join(header_lines) + body
         else:
-            # Add filetags line after title
-            content = re.sub(
-                r'(#\+title:[^\n]*\n)',
-                rf'\1#+filetags: {extra_tags_str}\n',
-                content,
-                flags=re.IGNORECASE
-            )
+            content = insert_header_keyword(content, f'#+filetags: {extra_tags_str}')
 
     # Add date from filename or filesystem mtime
-    if "#+date:" not in content.lower():
+    if not re.search(r'(?i)^#\+date:', split_org_header(content)[0], re.MULTILINE):
         date = get_date_from_filename(org_file) or get_date_from_mtime(org_file)
-        # Insert after title line
-        content = re.sub(
-            r'(#\+title:[^\n]*\n)',
-            rf'\1#+DATE: {date}\n',
-            content,
-            flags=re.IGNORECASE
-        )
+        content = insert_header_keyword(content, f'#+DATE: {date}')
 
     # Inline org-transclusion content before any link/attachment rewriting, so
     # transcluded text goes through the same pipeline as the host file's own.
