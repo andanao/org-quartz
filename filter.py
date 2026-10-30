@@ -19,7 +19,7 @@ CONTENT_DIR = Path(__file__).parent / "content"
 EXPORT_EL = Path(__file__).parent / "export.el"
 
 EXCLUDE_TAGS = {"private", "monthly", "ppl", "yof", "love", "cui"}  # Tags that exclude a file from publishing
-EXCLUDE_DIRS = {"daily", ".git"}  # Keep data/ for attachments
+EXCLUDE_DIRS = {"daily", "archive", ".git"}  # Keep data/ for attachments
 IMG_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"}
 
 # `[[file:img/x.svg]]`, `[[./img/x.svg][alt]]` - a relative path to an image,
@@ -603,13 +603,18 @@ def preprocess_org_file(org_file: Path, attachments_map: dict, roam_map: dict = 
         # Escape underscores to prevent org subscript interpretation
         def replace_attach(match):
             filename = match.group(1)
+            desc = match.group(2)
             if filename in available_attachments:
                 slug = available_attachments[filename]
                 escaped = slug.replace('_', 'USCORE')
+                if desc:
+                    # A described link keeps its text; ox-md would otherwise
+                    # turn it into a dead file: link.
+                    return f'ATTACHLINK:::{escaped}:::{desc}:::ENDATTACHLINK'
                 return f'IMGATTACH:{escaped}:ENDIMG'
             return match.group(0)
 
-        content = re.sub(r'\[\[attachment:([^\]]+)\]\]', replace_attach, content)
+        content = re.sub(r'\[\[attachment:([^\]]+)\](?:\[([^\]]*)\])?\]', replace_attach, content)
 
     # Relative image links, e.g. `[[file:img/plot.svg]]` written by a babel
     # block's `#+RESULTS:`. Emacs resolves them against the note's directory;
@@ -1140,11 +1145,17 @@ def fix_math_environments(output_dir: Path):
 def fix_attachment_placeholders(output_dir: Path):
     """Convert IMGATTACH:file:ENDIMG placeholders to markdown syntax."""
     pattern = re.compile(r'IMGATTACH:([^:]+):ENDIMG')
+    link_pattern = re.compile(r'ATTACHLINK:::([^:]+):::(.+?):::ENDATTACHLINK')
 
     fixed = 0
     for md_file in output_dir.glob("*.md"):
         content = md_file.read_text()
         original = content
+
+        content = link_pattern.sub(
+            lambda m: f"[{m.group(2).strip()}](/attachments/{m.group(1).replace('USCORE', '_')})",
+            content,
+        )
 
         def replace_placeholder(match):
             # Unescape underscores
